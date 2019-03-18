@@ -1,0 +1,5 @@
+data/
+preprocessing/
+src/__pycache__/
+src/*ipynb*
+tools/
