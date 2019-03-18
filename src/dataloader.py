@@ -80,12 +80,13 @@ class MTMDataset(torch.utils.data.Dataset):
         r = np.random.randint(BGN_IDX, self.vocab_size, (self.max_seq_len, ))
         mask = p < .12
         y = mask * MASK_IDX + (p > .12) * (p < .2) * r + (p > .2) * x
-        return x, y, mask, len(x)
+        pos = np.arange(len(x))
+        return x, y, mask * 1, len(x), pos
 
 
-def collate_fn(data):
-    xs, ys, masks, ls = zip(*data)
-    xs = pad_sequence([torch.LongTensor(x) for x in xs], batch_first=True, padding_value=PAD_IDX)
-    ys = pad_sequence([torch.LongTensor(y) for y in ys], batch_first=True, padding_value=PAD_IDX)
-    masks = pad_sequence([torch.LongTensor(mask * 1) for mask in masks], batch_first=True, padding_value=0)
-    return xs, ys, masks, torch.LongTensor(ls)
+# def collate_fn(data):
+#     xs, ys, masks, ls, poss = zip(*data)
+#     # xs = pad_sequence([torch.LongTensor(x) for x in xs], batch_first=True, padding_value=PAD_IDX)
+#     # ys = pad_sequence([torch.LongTensor(y) for y in ys], batch_first=True, padding_value=PAD_IDX)
+#     # masks = pad_sequence([torch.LongTensor(mask * 1) for mask in masks], batch_first=True, padding_value=0)
+#     return torch.LongTensor(xs), torch.LongTensor(ys), torch.LongTensor(masks), torch.LongTensor(ls), torch.LongTensor(poss)

@@ -60,15 +60,11 @@ class PositionalEncoding(nn.Module):
         ])
         pe[:, 0::2] = np.sin(pe[:, 0::2])
         pe[:, 1::2] = np.cos(pe[:, 1::2])
-        self.pe = np.expand_dims(pe, axis=0)
+        self.pe_embedding = nn.Embedding(num_embeddings=max_seq_len, embedding_dim=dim)
+        self.pe_embedding.from_pretrained(torch.as_tensor(pe), freeze=True)
 
-    def forward(self, x): # x: (batch_size, seq_len, dim)
-        seq_len = x.size(1)
-        Tensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
-        pe = torch.as_tensor(self.pe[:,:seq_len,:])
-        pe.detach_()
-        pe.requires_grad_(False)
-        return pe
+    def forward(self, pos): # pos: (batch_size, seq_len)
+        return self.pe_embedding(pos)
 
 
 class PositionalWiseFeedForward(nn.Module):
@@ -126,13 +122,13 @@ class Transformer(nn.Module):
         self.fc = nn.Linear(dim, vocab_size)
         self.xnli_fc = nn.Linear(dim, 3)
 
-    def encode(self, x, length):
+    def encode(self, x, length, pos):
         batch_size, seq_len = x.size()
         rng = torch.arange(seq_len, dtype=torch.long)
         self_mask = rng < length[:, None]
         enc_mask = (rng[None, :] <= rng[:, None]).repeat(batch_size, 1, 1)
         x = self.embed(x)
-        x = x + self.pe(x)
+        x = x + self.pe(pos)
         enc_output, dec_output = x, x
         for encoder in self.encoders:
             enc_output = encoder(enc_output, self_mask)
@@ -140,11 +136,11 @@ class Transformer(nn.Module):
             dec_output = decoder(dec_output, self_mask, enc_output=enc_output, enc_mask=enc_mask)
         return dec_output
 
-    def forward(self, x, length):
-        return self.fc(self.encode(x, length))    
+    def forward(self, x, length, pos):
+        return self.fc(self.encode(x, length, pos))    
 
-    def classify(self, x, length):
-        return self.xnli_fc(self.encode(x, length))
+    def classify(self, x, length, pos):
+        return self.xnli_fc(self.encode(x, length, pos))
 
 
 if __name__ == '__main__':
