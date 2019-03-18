@@ -40,13 +40,14 @@ def train(model, train_data_generator, max_epoch=1):
 
 
 if __name__ == '__main__':
-    
+    VOCAB_SIZE = 20000
+    MAX_SEQ_LEN = 64
     dataset = MTMDataset(vocab_filenames=['preprocessing/vocab.en.20000', 'preprocessing/vocab.fr.20000'], 
                         text_filenames=['preprocessing/train.fr.20000', 'preprocessing/train.en.20000'], 
-                        maxlines_per_file=5000)
+                        dataset_size=1000, vocab_size=VOCAB_SIZE, max_seq_len=MAX_SEQ_LEN, alpha=0.5)
     generator = torch.utils.data.DataLoader(dataset, collate_fn=collate_fn, batch_size=16, shuffle=True, num_workers=6)
     from transformer import Transformer
-    model = Transformer(max_seq_len=64, vocab_size=20000, n_layers=2, dim=256, d_ff=256, dropout=0.1, heads=4)
+    model = Transformer(max_seq_len=MAX_SEQ_LEN, vocab_size=VOCAB_SIZE, n_layers=2, dim=256, d_ff=256, dropout=0.1, heads=4)
     model = model.double()
     train(model, generator, max_epoch=1)
     

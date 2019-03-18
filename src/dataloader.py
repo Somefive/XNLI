@@ -26,38 +26,61 @@ def load_codes(filenames, size=20000):
         dico[token] = len(dico)
     return dico, counter
 
-# max_seq_len=256, maxlines=5000000
-def load_data(filenames, dico, max_seq_len=64, maxlines=100000):
-    data, length = [], []
-    for filename in filenames:
-        for _, line in zip(range(maxlines), open(filename)):
-            entry = [POS_IDX]
-            entry.extend([dico[token] if token in dico else UNK_IDX for token in line.strip().split(' ')])
-            entry.append(POS_IDX)
-            entry = entry[:max_seq_len]
-            l = len(entry)
-            data.append(entry)
-            length.append(l)
-    return data, length
 
+def load_monolingual_data(filename, dico, max_seq_len=64, maxlines=100000):
+    data, n = [POS_IDX], 0
+    for _, line in zip(range(maxlines), open(filename)):
+        data.extend([dico[token] if token in dico else UNK_IDX for token in line.strip().split(' ')])
+        data.append(POS_IDX)
+        n += 1
+    size = len(data) // max_seq_len * max_seq_len
+    return np.array(data[:size]).reshape(-1, max_seq_len), n
+
+# # max_seq_len=256, maxlines=5000000
+# def load_corpuses(filenames, dico, max_seq_len=64, maxlines=100000):
+#     corpuses = []
+#     for filename in filenames:
+#         data, length = [], []
+#         for _, line in zip(range(maxlines), open(filename)):
+#             entry = [POS_IDX]
+#             entry.extend([dico[token] if token in dico else UNK_IDX for token in line.strip().split(' ')])
+#             entry.append(POS_IDX)
+#             entry = entry[:max_seq_len]
+#             l = len(entry)
+#             data.append(entry)
+#             length.append(l)
+#         corpuses.append((data, length))
+#     return corpuses
 
 class MTMDataset(torch.utils.data.Dataset):
 
-    def __init__(self, vocab_filenames, text_filenames, vocab_size=20000, max_seq_len=64, maxlines_per_file=100000):
+    def __init__(self, vocab_filenames, text_filenames, dataset_size=100000, vocab_size=20000, max_seq_len=64, alpha=0.5):
         self.vocab_size, self.max_seq_len = vocab_size, max_seq_len
         self.dico, self.counter = load_codes(vocab_filenames, vocab_size)
-        self.data, self.length = load_data(text_filenames, self.dico, max_seq_len=max_seq_len, maxlines=maxlines_per_file)
+        self.corpuses, self.corpus_size = [], []
+        for filename in text_filenames:
+            corpus, size = load_monolingual_data(filename, self.dico, max_seq_len=max_seq_len, maxlines=dataset_size)
+            self.corpuses.append(corpus)
+            self.corpus_size.append(size)
+        self.sample_prob = np.array(self.corpus_size) ** alpha
+        self.sample_prob /= self.sample_prob.sum()
+        self.size = dataset_size
+        self.C = len(self.corpuses)
+        self.counter = np.zeros(self.C, dtype=np.int)
     
     def __len__(self):
-        return len(self.data)
+        return self.size
 
     def __getitem__(self, index):
-        x, l = np.array(self.data[index], dtype=np.int), self.length[index]
-        p = np.random.rand(l)
-        r = np.random.randint(BGN_IDX, self.vocab_size, (l, ))
+        c = np.random.choice(self.C)
+        idx = self.counter[c] % self.corpus_size[c]
+        self.counter[c] += 1
+        x = np.array(self.corpuses[c][idx], dtype=np.int)
+        p = np.random.rand(self.max_seq_len)
+        r = np.random.randint(BGN_IDX, self.vocab_size, (self.max_seq_len, ))
         mask = p < .12
         y = mask * MASK_IDX + (p > .12) * (p < .2) * r + (p > .2) * x
-        return x, y, mask, l
+        return x, y, mask, len(x)
 
 
 def collate_fn(data):
