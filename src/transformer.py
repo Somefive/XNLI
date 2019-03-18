@@ -124,9 +124,9 @@ class Transformer(nn.Module):
             for _ in range(n_layers)
         ])
         self.fc = nn.Linear(dim, vocab_size)
-        self.softmax = nn.Softmax(dim=-1)
+        self.xnli_fc = nn.Linear(dim, 3)
 
-    def forward(self, x, length):
+    def encode(self, x, length):
         batch_size, seq_len = x.size()
         rng = torch.arange(seq_len, dtype=torch.long)
         self_mask = rng < length[:, None]
@@ -138,16 +138,13 @@ class Transformer(nn.Module):
             enc_output = encoder(enc_output, self_mask)
         for decoder in self.decoders:
             dec_output = decoder(dec_output, self_mask, enc_output=enc_output, enc_mask=enc_mask)
-        return self.fc(dec_output)
+        return dec_output
 
-    # def encode(self, x, length):
-    #     self_mask = self.rng < length[:, None]
-    #     x = self.embed(x)
-    #     x = x + self.pe(x)
-    #     enc_output = x
-    #     for encoder in self.encoders:
-    #         enc_output = encoder(enc_output, self_mask)
-    #     return enc_output
+    def forward(self, x, length):
+        return self.fc(self.encode(x, length))    
+
+    def classify(self, x, length):
+        return self.xnli_fc(self.encode(x, length))
 
 
 if __name__ == '__main__':
