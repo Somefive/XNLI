@@ -140,7 +140,7 @@ class Transformer(nn.Module):
         return self.fc(self.encode(x, length, pos))    
 
     def classify(self, x, length, pos):
-        return self.xnli_fc(self.encode(x, length, pos))
+        return self.xnli_fc(self.encode(x, length, pos)[:,0,:].squeeze())
 
 
 if __name__ == '__main__':
