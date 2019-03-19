@@ -54,7 +54,7 @@ def parse_args():
 if __name__ == '__main__':
 
     args = parse_args()
-
+    
     dico, token_counter = load_vocab(extract_path(args.vocab_paths, prefix='data/vocab/'))
 
     generator_params = {
@@ -117,7 +117,7 @@ if __name__ == '__main__':
         print('Epoch %d' % epoch)
         if args.xlm:
             if train_mlm_data_generator:
-                trainer.train(train_mlm_data_generator, tune=False, save_path=args.save_path, epoch_size=10, name='[MLM] ')
+                trainer.train(train_mlm_data_generator, tune=False, save_path=args.save_path, name='[MLM] ')
             if valid_mlm_data_generator:
                 trainer.evaluate(valid_mlm_data_generator, tune=False, name='[MLM] ')
             if train_tlm_data_generator:

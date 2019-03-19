@@ -104,12 +104,12 @@ class TransformerLayer(nn.Module):
 
 class Transformer(nn.Module):
 
-    def __init__(self, max_seq_len, vocab_size, padding_idx=None, 
-                n_layers=6, dim=1024, d_ff=2048, dropout=0.1, heads=8):
+    def __init__(self, max_seq_len, vocab_size, 
+                 n_layers=6, dim=1024, d_ff=2048, dropout=0.1, heads=8):
         super(Transformer, self).__init__()
         self.n_layers, self.max_seq_len = n_layers, max_seq_len
         self.vocab_size = vocab_size
-        self.embed = nn.Embedding(vocab_size, dim, padding_idx=padding_idx)
+        self.embed = nn.Embedding(vocab_size, dim)
         self.pe = PositionalEncoding(dim=dim, max_seq_len=max_seq_len)
         self.encoders = nn.ModuleList([
             TransformerLayer(decoder=False, dim=dim, d_ff=d_ff, dropout=dropout, heads=heads)
@@ -124,7 +124,7 @@ class Transformer(nn.Module):
 
     def encode(self, x, length, pos):
         batch_size, seq_len = x.size()
-        rng = torch.arange(seq_len, dtype=torch.long)
+        rng = torch.arange(seq_len, dtype=torch.long, device=length.device)
         self_mask = rng < length[:, None]
         enc_mask = (rng[None, :] <= rng[:, None]).repeat(batch_size, 1, 1)
         x = self.embed(x)

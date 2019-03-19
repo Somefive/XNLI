@@ -56,6 +56,7 @@ class Trainer:
         self.reset_summary()
         self.model.eval()
         for batch in eval_data_generator:
+            batch = [b.to(self.device) for b in batch]
             self.run_batch(batch, tune=tune)
         if not tune:
             print('%sValidation Loss: %.4f, Acc: %.4f, BLEU: %.4f' % (name, self.total_loss / self.n_step, self.total_acc / self.n_step, self.total_bleu / self.n_step))
