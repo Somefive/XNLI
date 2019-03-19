@@ -10,7 +10,7 @@ MASK_IDX = 2
 POS_IDX = 3
 BGN_IDX = 4
 
-def load_codes(filenames, size=20000):
+def load_vocab(filenames, size=20000):
     counter = Counter()
     for filename in filenames:
         for line in open(filename):
@@ -52,3 +52,10 @@ def load_parallel_data(filename1, filename2, dico, max_seq_len=64, maxlines=1000
         reset_pos.append(min(rp, max_seq_len))
         n += 1
     return data, n, reset_pos
+
+def load_xnli_data(filename1, filename2, filename3, dico, max_seq_len=64, maxlines=100000):
+    data, n, reset_pos = load_parallel_data(filename1, filename2, dico, max_seq_len=max_seq_len, maxlines=maxlines)
+    label2id = {'neutral': 0, 'entailment': 1, 'contradiction': 2}
+    labels = [label2id[line.strip()] for _, line in zip(range(maxlines), open(filename3))]
+    n = min([n, len(labels)])
+    return data[:n], n, reset_pos[:n], labels[:n]
