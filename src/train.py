@@ -89,10 +89,10 @@ if __name__ == '__main__':
         valid_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_valid_paths, prefix='data/mlm/valid.'), 
                                               dataset_size=args.mlm_valid_set_size, para=False, **dataset_params).get_generator(
                                               params=generator_params) if args.mlm_valid_paths is not None else None
-        train_tlm_data_generator = XLMDataset(filenames=extract_path(args.tlm_train_paths, prefix='data/tlm/train.', groupby=2),
+        train_tlm_data_generator = XLMDataset(filenames=extract_path(args.tlm_train_paths, prefix='data/tlm/', suffix='.train', groupby=2),
                                               dataset_size=args.tlm_train_set_size, para=True, **dataset_params).get_generator(
                                               params=generator_params) if args.tlm_train_paths is not None else None
-        valid_tlm_data_generator = XLMDataset(filenames=extract_path(args.tlm_valid_paths, prefix='data/tlm/valid.', groupby=2), 
+        valid_tlm_data_generator = XLMDataset(filenames=extract_path(args.tlm_valid_paths, prefix='data/tlm/', suffix='.valid', groupby=2), 
                                               dataset_size=args.tlm_valid_set_size, para=True, **dataset_params).get_generator(
                                               params=generator_params) if args.tlm_valid_paths is not None else None
     if args.xnli:
