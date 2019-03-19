@@ -37,6 +37,7 @@ def load_monolingual_data(filename, dico, max_seq_len=64, maxlines=100000):
         n += 1
     size = len(data) // max_seq_len * max_seq_len
     data = np.array(data[:size]).reshape(-1, max_seq_len)
+    print('load monolingual data from %s' % filename)
     return data, data.shape[0]
 
 def load_parallel_data(filename1, filename2, dico, max_seq_len=64, maxlines=100000):
@@ -51,6 +52,7 @@ def load_parallel_data(filename1, filename2, dico, max_seq_len=64, maxlines=1000
         data.append(entry[:max_seq_len])
         reset_pos.append(min(rp, max_seq_len))
         n += 1
+    print('load parallel data from %s & %s' % (filename1, filename2))
     return data, n, reset_pos
 
 def load_xnli_data(filename1, filename2, filename3, dico, max_seq_len=64, maxlines=100000):
@@ -58,4 +60,5 @@ def load_xnli_data(filename1, filename2, filename3, dico, max_seq_len=64, maxlin
     label2id = {'neutral': 0, 'entailment': 1, 'contradiction': 2}
     labels = [label2id[line.strip()] for _, line in zip(range(maxlines), open(filename3))]
     n = min([n, len(labels)])
+    print('load xnli data label from %s' % filename3)
     return data[:n], n, reset_pos[:n], labels[:n]
