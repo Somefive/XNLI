@@ -107,7 +107,7 @@ class Transformer(nn.Module):
     def __init__(self, max_seq_len, vocab_size, 
                  n_layers=6, dim=1024, d_ff=2048, dropout=0.1, heads=8):
         super(Transformer, self).__init__()
-        self.n_layers, self.max_seq_len = n_layers, max_seq_len
+        self.n_layers, self.max_seq_len, self.dim = n_layers, max_seq_len, dim
         self.vocab_size = vocab_size
         self.embed = nn.Embedding(vocab_size, dim)
         self.pe = PositionalEncoding(dim=dim, max_seq_len=max_seq_len)
@@ -119,7 +119,7 @@ class Transformer(nn.Module):
             TransformerLayer(decoder=True, dim=dim, d_ff=d_ff, dropout=dropout, heads=heads)
             for _ in range(n_layers)
         ])
-        self.fc = nn.Linear(dim, vocab_size)
+        self.pred = nn.AdaptiveLogSoftmaxWithLoss(in_features=dim, n_classes=vocab_size, cutoffs=[1000, 10000], head_bias=True)
         self.xnli_fc = nn.Linear(dim, 3)
 
     def encode(self, x, length, pos):
@@ -136,8 +136,17 @@ class Transformer(nn.Module):
             dec_output = decoder(dec_output, self_mask, enc_output=enc_output, enc_mask=enc_mask)
         return dec_output
 
-    def forward(self, x, length, pos):
-        return self.fc(self.encode(x, length, pos))    
+    def forward(self, x, length, pos, mask, y, with_prob=False):
+        hidden_state = self.encode(x, length, pos)
+        mask = mask.byte()
+        hidden_state_masked = torch.masked_select(hidden_state, mask[:,:,None]).view(-1, self.dim)
+        y_masked = torch.masked_select(y, mask)
+        _, loss = self.pred(hidden_state_masked, y_masked)
+        if not with_prob:
+            return loss
+        else:
+            y_pred_masked = self.pred.log_prob(hidden_state_masked)
+            return y_masked, y_pred_masked, loss
 
     def classify(self, x, length, pos):
         return self.xnli_fc(self.encode(x, length, pos)[:,0,:].squeeze())

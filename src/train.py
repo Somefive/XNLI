@@ -107,7 +107,7 @@ if __name__ == '__main__':
                                                               **dataset_params).get_generator(params=generator_params)
     print('data prepared')
 
-    model = Transformer(**model_params).double().to(args.device)
+    model = Transformer(**model_params).float().to(args.device)
     if os.path.exists(args.load_path):
         model.load_state_dict(torch.load(args.load_path))
         print('model reloaded from %s' % args.load_path)
