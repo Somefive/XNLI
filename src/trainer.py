@@ -7,11 +7,11 @@ import datetime
 
 class Trainer:
 
-    def __init__(self, model, epoch_size=10000000, print_interval=2, verbose=True, device='cpu'):
+    def __init__(self, model, epoch_size=10000000, print_interval=2, verbose=True, device='cpu', lr=1e-4):
         self.model = model
         self.device = device
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(model.parameters(), lr=lr)
         self.total_loss, self.total_bleu, self.total_acc, self.n_step = 0, 0, 0, 0
         self.epoch_size, self.print_interval = epoch_size, print_interval
         self.verbose = verbose

@@ -6,7 +6,7 @@ python src/train.py \
 --max_seq_len 256 \
 --batch_size 64 \
 --shuffle True \
---num_workers 6 \
+--num_workers 12 \
 \
 --model_n_layers 6 \
 --model_dim 256 \

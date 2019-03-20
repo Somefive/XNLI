@@ -53,7 +53,9 @@ def parse_args():
     parser.add_argument("--xnli_train_paths", nargs='*', help="XNLI train dataset paths")
     parser.add_argument("--xnli_valid_paths", nargs='*', help="XNLI train dataset paths")
 
-    parser.add_argument("--device", default='cpu', help="device to use")
+    parser.add_argument("--lr", default=1e-4, type=float, help="learning rate of optimizer")
+
+    parser.add_argument("--device", default='cpu', type=str, help="device to use")
 
     args = parser.parse_args()
     return args
@@ -78,7 +80,8 @@ if __name__ == '__main__':
     trainer_params = {
         'epoch_size': args.epoch_size,
         'print_interval': args.print_interval,
-        'verbose': args.verbose
+        'verbose': args.verbose,
+	'lr': args.lr
     }
     model_params = {
         'max_seq_len': args.max_seq_len,
@@ -128,7 +131,7 @@ if __name__ == '__main__':
         if args.xlm:
             if train_mlm_data_generator and train_tlm_data_generator:
                 train_xlm_data_generator = composed_dataloader(train_mlm_data_generator, train_tlm_data_generator)
-                trainer.train(, tune=False, save_path=save_path, name='[XLM] ')
+                trainer.train(train_xlm_data_generator, tune=False, save_path=save_path, name='[XLM] ')
             if valid_mlm_data_generator:
                 trainer.evaluate(valid_mlm_data_generator, tune=False, name='[MLM] ')
             if valid_tlm_data_generator:
