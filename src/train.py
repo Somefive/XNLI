@@ -1,7 +1,7 @@
 import os
 from transformer import Transformer
 from dataloader import load_vocab 
-from dataset import XLMDataset
+from dataset import XLMDataset, composed_dataloader
 from trainer import Trainer
 import torch
 import argparse
@@ -40,6 +40,8 @@ def parse_args():
     parser.add_argument("--xnli_train_set_size", default=1000000, type=int, help="train dataset size for xnli")
     parser.add_argument("--xnli_valid_set_size", default=1000, type=int, help="valid dataset size for xnli")
 
+    parser.add_argument("--mlm", default=False, type=str2bool, help="Enable MLM")
+    parser.add_argument("--tlm", default=False, type=str2bool, help="Enable TLM")
     parser.add_argument("--xlm", default=False, type=str2bool, help="Enable MLM+TLM")
     parser.add_argument("--xnli", default=False, type=str2bool, help="Enable XNLI Fine Tune")
 
@@ -87,13 +89,14 @@ if __name__ == '__main__':
         'dropout': args.model_dropout,
         'heads': args.model_heads
     }
-    if args.xlm:
+    if args.mlm or args.xlm:
         train_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_train_paths, prefix='data/mlm/train.'), 
                                               dataset_size=args.mlm_train_set_size, para=False, **dataset_params).get_generator(
                                               params=generator_params) if args.mlm_train_paths is not None else None
         valid_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_valid_paths, prefix='data/mlm/valid.'), 
                                               dataset_size=args.mlm_valid_set_size, para=False, **dataset_params).get_generator(
                                               params=generator_params) if args.mlm_valid_paths is not None else None
+    if args.tlm or args.xlm:
         train_tlm_data_generator = XLMDataset(filenames=extract_path(args.tlm_train_paths, prefix='data/tlm/', suffix='.train', groupby=2),
                                               dataset_size=args.tlm_train_set_size, para=True, **dataset_params).get_generator(
                                               params=generator_params) if args.tlm_train_paths is not None else None
@@ -123,15 +126,24 @@ if __name__ == '__main__':
         print('Epoch %d' % epoch)
         save_path = args.save_path if args.save_path_inc == 0 else '%s-%d' % (args.save_path, epoch / args.save_path_inc)
         if args.xlm:
+            if train_mlm_data_generator and train_tlm_data_generator:
+                train_xlm_data_generator = composed_dataloader(train_mlm_data_generator, train_tlm_data_generator)
+                trainer.train(, tune=False, save_path=save_path, name='[XLM] ')
+            if valid_mlm_data_generator:
+                trainer.evaluate(valid_mlm_data_generator, tune=False, name='[MLM] ')
+            if valid_tlm_data_generator:
+                trainer.evaluate(valid_tlm_data_generator, tune=False, name='[TLM] ')
+        elif args.mlm:
             if train_mlm_data_generator:
                 trainer.train(train_mlm_data_generator, tune=False, save_path=save_path, name='[MLM] ')
             if valid_mlm_data_generator:
                 trainer.evaluate(valid_mlm_data_generator, tune=False, name='[MLM] ')
+        elif args.tlm:
             if train_tlm_data_generator:
                 trainer.train(train_tlm_data_generator, tune=False, save_path=save_path, name='[TLM] ')
             if valid_tlm_data_generator:
                 trainer.evaluate(valid_tlm_data_generator, tune=False, name='[TLM] ')
-        if args.xnli:
+        elif args.xnli:
             if train_xnli_data_generator:
                 trainer.train(train_xnli_data_generator, tune=True, save_path=save_path, name='[XNLI] ')
             for lang, valid_xnli_data_generator in valid_xnli_data_generators.items():

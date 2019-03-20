@@ -65,3 +65,9 @@ def collate_fn_labeled(data):
     xs = pad_sequence([torch.LongTensor(x) for x in xs], batch_first=True, padding_value=PAD_IDX)
     poss = pad_sequence([torch.LongTensor(pos) for pos in poss], batch_first=True, padding_value=0)
     return xs, torch.LongTensor(ls), poss, torch.LongTensor(labels)
+
+def composed_dataloader(dataloader1, dataloader2):
+    while True:
+        for data1, data2 in zip(dataloader1, dataloader2):
+            yield data1
+            yield data2
