@@ -4,23 +4,23 @@ python src/train.py \
 --save_path model/en-fr \
 --vocab_size 60000 \
 --max_seq_len 256 \
---batch_size 32 \
+--batch_size 8 \
 --shuffle True \
---num_workers 6 \
+--num_workers 1 \
 \
 --model_n_layers 6 \
---model_dim 256 \
---model_d_ff 2048 \
+--model_dim 128 \
+--model_d_ff 512 \
 --model_dropout 0.1 \
---model_heads 8 \
+--model_heads 4 \
 \
 --max_epoch 100 \
---epoch_size 100000 \
+--epoch_size 1000 \
 --print_interval 10 \
 --verbose True \
 \
---mlm_train_set_size 5000000 \
---tlm_train_set_size 10000000 \
+--mlm_train_set_size 500000 \
+--tlm_train_set_size 1000000 \
 --tlm_valid_set_size 5000 \
 --xnli_train_set_size 400000 \
 --xnli_valid_set_size 2500 \

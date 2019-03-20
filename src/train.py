@@ -121,11 +121,11 @@ if __name__ == '__main__':
             if valid_mlm_data_generator:
                 trainer.evaluate(valid_mlm_data_generator, tune=False, name='[MLM] ')
             if train_tlm_data_generator:
-                trainer.train(train_tlm_data_generator, tune=False, save_path=args.save_path, epoch_size=10, name='[TLM] ')
+                trainer.train(train_tlm_data_generator, tune=False, save_path=args.save_path, name='[TLM] ')
             if valid_tlm_data_generator:
                 trainer.evaluate(valid_tlm_data_generator, tune=False, name='[TLM] ')
         if args.xnli:
             if train_xnli_data_generator:
-                trainer.train(train_xnli_data_generator, tune=True, save_path=args.save_path, epoch_size=10, name='[XNLI] ')
+                trainer.train(train_xnli_data_generator, tune=True, save_path=args.save_path, name='[XNLI] ')
             for lang, valid_xnli_data_generator in valid_xnli_data_generators.items():
                 trainer.evaluate(valid_xnli_data_generator, tune=True, name='[XNLI-%s] ' % lang)
