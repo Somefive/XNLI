@@ -3,6 +3,7 @@ import torch
 import torch.utils.data
 import numpy as np
 from torch.nn.utils.rnn import pad_sequence
+from tqdm import tqdm
 
 PAD_IDX = 0
 UNK_IDX = 1
@@ -31,7 +32,7 @@ def line2id(line, dico):
 
 def load_monolingual_data(filename, dico, max_seq_len=64, maxlines=100000):
     data, n = [POS_IDX], 0
-    for _, line in zip(range(maxlines), open(filename)):
+    for _, line in tqdm(zip(range(maxlines), open(filename)), leave=False):
         data += line2id(line, dico)
         data += [POS_IDX]
         n += 1
@@ -42,7 +43,7 @@ def load_monolingual_data(filename, dico, max_seq_len=64, maxlines=100000):
 
 def load_parallel_data(filename1, filename2, dico, max_seq_len=64, maxlines=100000):
     data, n, reset_pos = [], 0, []
-    for _, line1, line2 in zip(range(maxlines), open(filename1), open(filename2)):
+    for _, line1, line2 in tqdm(zip(range(maxlines), open(filename1), open(filename2)), leave=False):
         entry = [POS_IDX]
         entry += line2id(line1, dico)
         entry += [POS_IDX, POS_IDX]
