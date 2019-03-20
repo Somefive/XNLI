@@ -6,3 +6,4 @@ tools/
 model/
 src/*.swp
 scripts/*.swp
+log/

@@ -8,9 +8,14 @@ import argparse
 from utils import extract_path
 
 def parse_args():
+
+    def str2bool(x):
+        return x != 'False'
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_path", default='model/default', type=str, help="load model from this location")
     parser.add_argument("--save_path", default='model/default', type=str, help="store model in this location")
+    parser.add_argument("--save_path_inc", default=0, type=int, help="store model with increment number every <save_path_inc> epoch. default is 0 means not increment.")
     parser.add_argument("--vocab_size", default=20000, type=int, help="vocabulary size")
     parser.add_argument("--max_seq_len", default=64, type=int, help="max sequence size")
     parser.add_argument("--batch_size", default=16, type=int, help="batch size")
@@ -35,8 +40,8 @@ def parse_args():
     parser.add_argument("--xnli_train_set_size", default=1000000, type=int, help="train dataset size for xnli")
     parser.add_argument("--xnli_valid_set_size", default=1000, type=int, help="valid dataset size for xnli")
 
-    parser.add_argument("--xlm", default=False, type=bool, help="Enable MLM+TLM")
-    parser.add_argument("--xnli", default=False, type=bool, help="Enable XNLI Fine Tune")
+    parser.add_argument("--xlm", default=False, type=str2bool, help="Enable MLM+TLM")
+    parser.add_argument("--xnli", default=False, type=str2bool, help="Enable XNLI Fine Tune")
 
     parser.add_argument("--vocab_paths", nargs='+', help="vocabulary load paths")
     parser.add_argument("--mlm_train_paths", nargs='*', help="MLM train dataset paths")
@@ -54,7 +59,7 @@ def parse_args():
 if __name__ == '__main__':
 
     args = parse_args()
-    
+
     dico, token_counter = load_vocab(extract_path(args.vocab_paths, prefix='data/vocab/'))
 
     generator_params = {
@@ -107,7 +112,8 @@ if __name__ == '__main__':
                                                               **dataset_params).get_generator(params=generator_params)
     print('data prepared')
 
-    model = Transformer(**model_params).float().to(args.device)
+    model = torch.nn.DataParallel(Transformer(**model_params).float())
+    model = model.to(args.device)
     if os.path.exists(args.load_path):
         model.load_state_dict(torch.load(args.load_path))
         print('model reloaded from %s' % args.load_path)
@@ -115,17 +121,18 @@ if __name__ == '__main__':
     trainer = Trainer(model, **trainer_params).to(args.device)
     for epoch in range(args.max_epoch):
         print('Epoch %d' % epoch)
+        save_path = args.save_path if args.save_path_inc == 0 else '%s-%d' % (args.save_path, epoch / args.save_path_inc)
         if args.xlm:
             if train_mlm_data_generator:
-                trainer.train(train_mlm_data_generator, tune=False, save_path=args.save_path, name='[MLM] ')
+                trainer.train(train_mlm_data_generator, tune=False, save_path=save_path, name='[MLM] ')
             if valid_mlm_data_generator:
                 trainer.evaluate(valid_mlm_data_generator, tune=False, name='[MLM] ')
             if train_tlm_data_generator:
-                trainer.train(train_tlm_data_generator, tune=False, save_path=args.save_path, name='[TLM] ')
+                trainer.train(train_tlm_data_generator, tune=False, save_path=save_path, name='[TLM] ')
             if valid_tlm_data_generator:
                 trainer.evaluate(valid_tlm_data_generator, tune=False, name='[TLM] ')
         if args.xnli:
             if train_xnli_data_generator:
-                trainer.train(train_xnli_data_generator, tune=True, save_path=args.save_path, name='[XNLI] ')
+                trainer.train(train_xnli_data_generator, tune=True, save_path=save_path, name='[XNLI] ')
             for lang, valid_xnli_data_generator in valid_xnli_data_generators.items():
                 trainer.evaluate(valid_xnli_data_generator, tune=True, name='[XNLI-%s] ' % lang)

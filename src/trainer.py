@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 from utils import get_bleu
-
+import datetime
 
 class Trainer:
 
@@ -39,6 +39,7 @@ class Trainer:
         else:
             local_labels, pred_labels, loss = self.forward(batch, tune=tune)
             self.total_acc += (local_labels == pred_labels.argmax(dim=1)).float().mean().item()
+        loss = loss.mean()
         if self.model.training:
             loss.backward()
             self.optimizer.step()
@@ -55,13 +56,9 @@ class Trainer:
         self.reset_summary()
         self.model.eval()
         for batch in eval_data_generator:
+            batch = [b.to(self.device) for b in batch]
             self.run_batch(batch, tune=tune)
-        if not tune:
-            print('%sValidation Loss: %.4f, Acc: %.4f, BLEU: %.4f' % (name, self.total_loss / self.n_step, self.total_acc / self.n_step, self.total_bleu / self.n_step))
-        else:
-            print('%sValidation Loss: %.4f, Acc: %.4f' % (name, self.total_loss / self.n_step, self.total_acc / self.n_step))
-        self.reset_summary()
-        self.model.train()
+        print('%sValidation Loss: %.4f, Acc: %.4f' % (name, self.total_loss / self.n_step, self.total_acc / self.n_step))
 
     def train(self, train_data_generator, tune=False, save_path=None, epoch_size=None, name=''):
         if epoch_size is None:
@@ -77,6 +74,7 @@ class Trainer:
                 pbar.set_description('%sTraining Loss: %.4f' % (name, self.total_loss / self.n_step))
         if save_path:
             torch.save(self.model.state_dict(), save_path)
+            print('[%s] model saved to %s' % (datetime.datetime.now(), save_path))
 
     def to(self, device):
         self.device = device
