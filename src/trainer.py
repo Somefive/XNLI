@@ -4,17 +4,29 @@ import torch.optim as optim
 from tqdm import tqdm
 from utils import get_bleu
 import datetime
+import os
 
 class Trainer:
 
-    def __init__(self, model, epoch_size=10000000, print_interval=2, verbose=True, device='cpu', lr=1e-4):
-        self.model = model
+    def __init__(self, model, epoch_size=10000000, print_interval=2, verbose=True, device='cpu', lr=1e-4, fp16=False, multiple_gpu=False):
+        self.model = model.to(device)
         self.device = device
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(model.parameters(), lr=lr)
         self.total_loss, self.total_bleu, self.total_acc, self.n_step = 0, 0, 0, 0
         self.epoch_size, self.print_interval = epoch_size, print_interval
         self.verbose = verbose
+        self.fp16 = fp16
+        if fp16:
+            from apex import amp
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
+        if multiple_gpu and not fp16 and device != 'cpu':
+            self.model = torch.nn.DataParallel(self.model, device_ids=[0,1])
+
+    def load_model(self, path):
+        if os.path.exists(path):
+            self.model.load_state_dict(torch.load(path))
+            print('model loaded from %s' % path)
 
     def forward(self, batch, tune=False):
         self.optimizer.zero_grad()
@@ -41,7 +53,11 @@ class Trainer:
             self.total_acc += (local_labels == pred_labels.argmax(dim=1)).float().mean().item()
         loss = loss.mean()
         if self.model.training:
-            loss.backward()
+            if not self.fp16:
+                loss.backward()
+            else:
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
             self.optimizer.step()
         self.total_loss += loss.item()
         self.step()
@@ -76,7 +92,3 @@ class Trainer:
             torch.save(self.model.state_dict(), save_path)
             print('[%s] model saved to %s' % (datetime.datetime.now(), save_path))
 
-    def to(self, device):
-        self.device = device
-        return self
-    

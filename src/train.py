@@ -56,6 +56,8 @@ def parse_args():
     parser.add_argument("--lr", default=1e-4, type=float, help="learning rate of optimizer")
 
     parser.add_argument("--device", default='cpu', type=str, help="device to use")
+    parser.add_argument("--fp16", default=False, type=str2bool, help="using fp16")
+    parser.add_argument("--multiple_gpu", default=False, type=str2bool, help="using multiple gpu")
 
     args = parser.parse_args()
     return args
@@ -81,7 +83,10 @@ if __name__ == '__main__':
         'epoch_size': args.epoch_size,
         'print_interval': args.print_interval,
         'verbose': args.verbose,
-	'lr': args.lr
+	'lr': args.lr,
+        'fp16': args.fp16,
+        'multiple_gpu': args.multiple_gpu,
+        'device': args.device
     }
     model_params = {
         'max_seq_len': args.max_seq_len,
@@ -92,6 +97,11 @@ if __name__ == '__main__':
         'dropout': args.model_dropout,
         'heads': args.model_heads
     }
+
+    model = Transformer(**model_params).float()
+    trainer = Trainer(model, **trainer_params)
+    trainer.load_model(args.load_path)
+
     if args.mlm or args.xlm:
         train_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_train_paths, prefix='data/mlm/train.'), 
                                               dataset_size=args.mlm_train_set_size, para=False, **dataset_params).get_generator(
@@ -118,13 +128,6 @@ if __name__ == '__main__':
                                                               **dataset_params).get_generator(params=generator_params)
     print('data prepared')
 
-    model = torch.nn.DataParallel(Transformer(**model_params).float())
-    model = model.to(args.device)
-    if os.path.exists(args.load_path):
-        model.load_state_dict(torch.load(args.load_path))
-        print('model reloaded from %s' % args.load_path)
-
-    trainer = Trainer(model, **trainer_params).to(args.device)
     for epoch in range(args.max_epoch):
         print('Epoch %d' % epoch)
         save_path = args.save_path if args.save_path_inc == 0 else '%s-%d' % (args.save_path, epoch / args.save_path_inc)
