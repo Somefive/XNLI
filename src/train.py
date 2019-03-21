@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument("--model_d_ff", default=512, type=int, help="model feed forward dimensions")
     parser.add_argument("--model_dropout", default=0.1, type=float, help="model dropout")
     parser.add_argument("--model_heads", default=4, type=int, help="model heads")
+    parser.add_argument("--model_encoder_only", default=True, type=str2bool, help="model only use encoder")
 
     parser.add_argument("--max_epoch", default=10, type=int, help="trainer max epoch")
     parser.add_argument("--epoch_size", default=10, type=int, help="trainer epoch size")
@@ -95,7 +96,8 @@ if __name__ == '__main__':
         'dim': args.model_dim,
         'd_ff': args.model_d_ff,
         'dropout': args.model_dropout,
-        'heads': args.model_heads
+        'heads': args.model_heads,
+        'encoder_only': args.model_encoder_only
     }
 
     model = Transformer(**model_params).float()
