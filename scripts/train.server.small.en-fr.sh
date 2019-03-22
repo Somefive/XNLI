@@ -1,19 +1,19 @@
 #!/bin/bash
 python src/train.py \
---load_path model/en-fr-small \
---save_path model/en-fr-small \
+--load_path model/en-fr-mini \
+--save_path model/en-fr-mini \
 --save_path_inc 5 \
---vocab_size 30000 \
---max_seq_len 256 \
+--vocab_size 20000 \
+--max_seq_len 128 \
 --batch_size 64 \
 --shuffle True \
 --num_workers 12 \
 \
---model_n_layers 6 \
---model_dim 512 \
---model_d_ff 1024 \
+--model_n_layers 4 \
+--model_dim 256 \
+--model_d_ff 512 \
 --model_dropout 0.1 \
---model_heads 16 \
+--model_heads 8 \
 --model_encoder_only True \
 \
 --max_epoch 100 \
@@ -28,7 +28,7 @@ python src/train.py \
 --xnli_valid_set_size 2500 \
 \
 --tlm False \
---xnli True \
+--xnli Tune \
 \
 --vocab_path en fr \
 --mlm_train_paths en fr \

@@ -105,10 +105,10 @@ if __name__ == '__main__':
     trainer.load_model(args.load_path)
 
     if args.mlm or args.xlm:
-        train_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_train_paths, prefix='data/mlm/train.'), 
+        train_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_train_paths, prefix='data/mlm/', suffix='.train'), 
                                               dataset_size=args.mlm_train_set_size, para=False, **dataset_params).get_generator(
                                               params=generator_params) if args.mlm_train_paths is not None else None
-        valid_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_valid_paths, prefix='data/mlm/valid.'), 
+        valid_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_valid_paths, prefix='data/mlm/', suffix='.valid'), 
                                               dataset_size=args.mlm_valid_set_size, para=False, **dataset_params).get_generator(
                                               params=generator_params) if args.mlm_valid_paths is not None else None
     if args.tlm or args.xlm:

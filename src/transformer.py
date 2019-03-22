@@ -142,7 +142,9 @@ class Transformer(nn.Module):
                 dec_output = decoder(dec_output, self_mask, enc_output=enc_output, enc_mask=enc_mask)
             return dec_output
 
-    def forward(self, x, length, pos, mask, y, with_prob=False):
+    def forward(self, x, length, pos, mask=None, y=None, with_prob=False):
+        if mask is None:
+            return self.xnli_fc(self.encode(x, length, pos)[:,0,:].squeeze()) 
         hidden_state = self.encode(x, length, pos)
         mask = mask.byte()
         hidden_state_masked = torch.masked_select(hidden_state, mask[:,:,None]).view(-1, self.dim)
@@ -153,10 +155,6 @@ class Transformer(nn.Module):
         else:
             y_pred_masked = self.pred.log_prob(hidden_state_masked)
             return y_masked, y_pred_masked, loss
-
-    def classify(self, x, length, pos):
-        return self.xnli_fc(self.encode(x, length, pos)[:,0,:].squeeze())
-
 
 if __name__ == '__main__':
     model = Transformer(100, 100, 100, n_layers=2, dim=256, d_ff=256, dropout=0.1, heads=4)

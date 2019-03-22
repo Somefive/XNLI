@@ -1,8 +1,7 @@
 #!/bin/bash
 python src/train.py \
---load_path model/en-fr-small \
---save_path model/en-fr-small \
---save_path_inc 5 \
+--load_path model/en-fr-tune \
+--save_path model/en-fr-tune \
 --vocab_size 30000 \
 --max_seq_len 256 \
 --batch_size 64 \
@@ -16,13 +15,13 @@ python src/train.py \
 --model_heads 16 \
 --model_encoder_only True \
 \
---max_epoch 100 \
---epoch_size 2000 \
+--max_epoch 10 \
+--epoch_size 1000 \
 --print_interval 1 \
 --verbose True \
 \
---mlm_train_set_size 5000000 \
---tlm_train_set_size 10000000 \
+--mlm_train_set_size 500000 \
+--tlm_train_set_size 1000000 \
 --tlm_valid_set_size 5000 \
 --xnli_train_set_size 400000 \
 --xnli_valid_set_size 2500 \
@@ -40,4 +39,4 @@ python src/train.py \
 --device cuda:0 \
 --multiple_gpu True \
 --fp16 False \
---lr 2e-4
+--lr 2e-5

@@ -15,6 +15,8 @@ def load_vocab(filenames, size=20000):
     counter = Counter()
     for filename in filenames:
         for line in open(filename):
+            if len(line.strip().split(' ')) == 1:
+                continue
             token, cnt = line.strip().split(' ')
             counter[token] += int(cnt)
     print('%d words loaded.' % len(counter))
