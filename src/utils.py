@@ -18,3 +18,5 @@ def extract_path(paths, prefix=None, suffix=None, groupby=1):
         paths = [paths[i:i+groupby] for i in range(0, len(paths), groupby)]
     return paths
             
+def extract_lang(filename, end=False):
+    return filename[filename.rindex('.')-2:filename.rindex('.')]

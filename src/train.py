@@ -1,7 +1,7 @@
 import os
 from transformer import Transformer
 from dataloader import load_vocab 
-from dataset import XLMDataset, composed_dataloader
+from dataset import XLMDataset, composed_dataloader, MaskedDataset
 from trainer import Trainer
 import torch
 import argparse
@@ -11,6 +11,9 @@ def parse_args():
 
     def str2bool(x):
         return x != 'False'
+
+    def str2ints(x):
+        return [int(i) for i in x.split(',')]
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_path", default='model/default', type=str, help="load model from this location")
@@ -58,7 +61,7 @@ def parse_args():
 
     parser.add_argument("--device", default='cpu', type=str, help="device to use")
     parser.add_argument("--fp16", default=False, type=str2bool, help="using fp16")
-    parser.add_argument("--multiple_gpu", default=False, type=str2bool, help="using multiple gpu")
+    parser.add_argument("--gpus", default=[0], type=str2ints, help="gpu ids")
 
     args = parser.parse_args()
     return args
@@ -86,7 +89,7 @@ if __name__ == '__main__':
         'verbose': args.verbose,
 	'lr': args.lr,
         'fp16': args.fp16,
-        'multiple_gpu': args.multiple_gpu,
+        'gpus': args.gpus,
         'device': args.device
     }
     model_params = {
@@ -104,20 +107,21 @@ if __name__ == '__main__':
     trainer = Trainer(model, **trainer_params)
     trainer.load_model(args.load_path)
 
+
     if args.mlm or args.xlm:
-        train_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_train_paths, prefix='data/mlm/', suffix='.train'), 
-                                              dataset_size=args.mlm_train_set_size, para=False, **dataset_params).get_generator(
-                                              params=generator_params) if args.mlm_train_paths is not None else None
-        valid_mlm_data_generator = XLMDataset(filenames=extract_path(args.mlm_valid_paths, prefix='data/mlm/', suffix='.valid'), 
-                                              dataset_size=args.mlm_valid_set_size, para=False, **dataset_params).get_generator(
-                                              params=generator_params) if args.mlm_valid_paths is not None else None
+        train_mlm_data_generator = MaskedDataset(filenames=extract_path(args.mlm_train_paths, prefix='data/mlm/', suffix='.train'), 
+                                                 dataset_size=args.mlm_train_set_size, **dataset_params).get_generator(
+                                                 params=generator_params) if args.mlm_train_paths is not None else None
+        valid_mlm_data_generator = MaskedDataset(filenames=extract_path(args.mlm_valid_paths, prefix='data/mlm/', suffix='.valid'), 
+                                                 dataset_size=args.mlm_valid_set_size, **dataset_params).get_generator(
+                                                 params=generator_params) if args.mlm_valid_paths is not None else None
     if args.tlm or args.xlm:
-        train_tlm_data_generator = XLMDataset(filenames=extract_path(args.tlm_train_paths, prefix='data/tlm/', suffix='.train', groupby=2),
-                                              dataset_size=args.tlm_train_set_size, para=True, **dataset_params).get_generator(
-                                              params=generator_params) if args.tlm_train_paths is not None else None
-        valid_tlm_data_generator = XLMDataset(filenames=extract_path(args.tlm_valid_paths, prefix='data/tlm/', suffix='.valid', groupby=2), 
-                                              dataset_size=args.tlm_valid_set_size, para=True, **dataset_params).get_generator(
-                                              params=generator_params) if args.tlm_valid_paths is not None else None
+        train_tlm_data_generator = MaskedDataset(filenames=extract_path(args.tlm_train_paths, prefix='data/tlm/', suffix='.train', groupby=2),
+                                                 dataset_size=args.tlm_train_set_size, **dataset_params).get_generator(
+                                                 params=generator_params) if args.tlm_train_paths is not None else None
+        valid_tlm_data_generator = MaskedDataset(filenames=extract_path(args.tlm_valid_paths, prefix='data/tlm/', suffix='.valid', groupby=2), 
+                                                 dataset_size=args.tlm_valid_set_size, **dataset_params).get_generator(
+                                                 params=generator_params) if args.tlm_valid_paths is not None else None
     if args.xnli:
         train_xnli_data_generator = XLMDataset(filenames=extract_path(args.xnli_train_paths, prefix='data/xnli/train.', groupby=3),
                                                dataset_size=args.xnli_train_set_size, para=True, labeled=True, **dataset_params).get_generator(

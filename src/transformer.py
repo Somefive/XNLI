@@ -105,13 +105,14 @@ class TransformerLayer(nn.Module):
 class Transformer(nn.Module):
 
     def __init__(self, max_seq_len, vocab_size, 
-                 n_layers=6, dim=1024, d_ff=2048, dropout=0.1, heads=8, encoder_only=True):
+                 n_layers=6, dim=1024, d_ff=2048, dropout=0.1, heads=8, encoder_only=True, n_langs=15):
         super(Transformer, self).__init__()
         self.n_layers, self.max_seq_len, self.dim = n_layers, max_seq_len, dim
         self.encoder_only = encoder_only
         self.vocab_size = vocab_size
         self.embed = nn.Embedding(vocab_size, dim)
         self.pe = PositionalEncoding(dim=dim, max_seq_len=max_seq_len)
+        self.lang_embed = nn.Embedding(n_langs, dim)
         self.encoders = nn.ModuleList([
             TransformerLayer(decoder=False, dim=dim, d_ff=d_ff, dropout=dropout, heads=heads)
             for _ in range(n_layers)
@@ -121,32 +122,31 @@ class Transformer(nn.Module):
                 TransformerLayer(decoder=True, dim=dim, d_ff=d_ff, dropout=dropout, heads=heads)
                 for _ in range(n_layers)
             ])
-        self.pred = nn.AdaptiveLogSoftmaxWithLoss(in_features=dim, n_classes=vocab_size, cutoffs=[1000, 10000], head_bias=True)
+        self.pred = nn.AdaptiveLogSoftmaxWithLoss(in_features=dim, n_classes=vocab_size, cutoffs=[8000, 20000], head_bias=True)
         self.xnli_fc = nn.Linear(dim, 3)
 
-    def encode(self, x, length, pos):
+    def encode(self, x, length, pos, langs):
         batch_size, seq_len = x.size()
         rng = torch.arange(seq_len, dtype=torch.long, device=length.device)
         self_mask = rng < length[:, None]
-        enc_mask = (rng[None, :] <= rng[:, None]).repeat(batch_size, 1, 1)
         x = self.embed(x)
-        x = x + self.pe(pos)
+        x = x + self.pe(pos) + self.lang_embed(n_langs)
         enc_output = x
         for encoder in self.encoders:
             enc_output = encoder(enc_output, self_mask)
         if self.encoder_only:
             return enc_output
         else:
+            enc_mask = (rng[None, :] <= rng[:, None]).repeat(batch_size, 1, 1)
             dec_output = x
             for decoder in self.decoders:
                 dec_output = decoder(dec_output, self_mask, enc_output=enc_output, enc_mask=enc_mask)
             return dec_output
 
-    def forward(self, x, length, pos, mask=None, y=None, with_prob=False):
+    def forward(self, x, length, pos, langs, mask=None, y=None, with_prob=False):
         if mask is None:
-            return self.xnli_fc(self.encode(x, length, pos)[:,0,:].squeeze()) 
-        hidden_state = self.encode(x, length, pos)
-        mask = mask.byte()
+            return self.xnli_fc(self.encode(x, length, pos, langs)[:,0,:].squeeze()) 
+        hidden_state = self.encode(x, length, pos, langs)
         hidden_state_masked = torch.masked_select(hidden_state, mask[:,:,None]).view(-1, self.dim)
         y_masked = torch.masked_select(y, mask)
         _, loss = self.pred(hidden_state_masked, y_masked)

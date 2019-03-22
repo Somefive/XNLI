@@ -2,7 +2,6 @@ import torch.utils.data
 from dataloader import *
 import numpy as np
 
-
 class XLMDataset(torch.utils.data.Dataset):
     
     def __init__(self, dico, filenames, para=False, dataset_size=1000000, max_seq_len=64, alpha=0.5, vocab_size=20000, labeled=False):
@@ -71,3 +70,57 @@ def composed_dataloader(dataloader1, dataloader2):
         for data1, data2 in zip(dataloader1, dataloader2):
             yield data1
             yield data2
+
+
+
+class MaskedDataset(torch.utils.data.Dataset)：
+
+    def __init__(self, dico, filenames, maxlines=1e8, max_seq_len=256):
+        self.data = []
+        for filename in filenames:
+            self.data += load_LM_data(filename, dico, max_seq_len, maxlines)
+        self.size, self.vocab_size = len(data), len(dico)
+        self.max_seq_len = max_seq_len
+        unk_rate = sum([seq.count(UNK_IDX) / len(seq) for seq in seqs for seqs, _ in self.data]) / self.size * 100
+        avg_seq_len = sum([len(d[0]) for seq in seqs for seqs, _ in self.data]) / self.size
+        print('[MaskedDataset] load %s data. %.2f\% <UNK>. Avg Length: %.2f.' % (self.size, unk_rate, avg_seq_len))
+        return data
+    
+    def __len__(self):
+        return self.data
+    
+    def __getitem__(self, index):
+        seqs, langs = self.data[index]
+        if len(seqs) == 2:
+            if np.random.rand() < 0.5:
+                seq1, seq2 = seqs
+                lang1, lang2 = langs
+            else:
+                seq2, seq1 = seqs
+                lang2, lang1 = langs
+            seq = seq1 + seq2
+            langs = [lang1] * len(seq1) + [lang2] * len(seq2)
+            pos = list(range(len(seq1))) + list(range(len(seq2)))
+        else:
+            seq = seqs[0]
+            langs = [langs[0]] * len(seq)
+            pos = list(range(len(seq)))
+        label, langs, pos = seq[:self.max_seq_len], langs[:self.max_seq_len], pos[:self.max_seq_len]
+        p = np.random.rand(len(label))
+        r = np.random.randint(BGN_IDX, self.vocab_size, (len(label),))
+        data = (p < .12) * MASK_IDX + (p > .12) * (p < .135) * r + (p > .15) * label
+        return data, label, len(seq), pos, langs, (p < .15)
+
+    def get_generator(self, params={}):
+        params['collate_fn'] = collate_fn_masked
+        return torch.utils.data.DataLoader(self, **params)
+
+def collate_fn_masked(data):
+    xs, ys, ls, poss, langs, masks = zip(*data)
+    xs = pad_sequence([torch.LongTensor(x) for x in xs], batch_first=True, padding_value=PAD_IDX)
+    ys = pad_sequence([torch.LongTensor(y) for y in ys], batch_first=True, padding_value=PAD_IDX)
+    ls = torch.LongTensor(ls)
+    poss = pad_sequence([torch.LongTensor(pos) for pos in poss], batch_first=True, padding_value=0)
+    langs = pad_sequence([torch.LongTensor(lang) for lang in langs], batch_first=True, padding_value=0)
+    masks = pad_sequence([torch.ByteTensor(mask) for mask in masks], batch_first=True, padding_value=0)
+    return xs, ys, ls, poss, langs, masks

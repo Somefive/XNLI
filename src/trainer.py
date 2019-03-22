@@ -8,7 +8,7 @@ import os
 
 class Trainer:
 
-    def __init__(self, model, epoch_size=10000000, print_interval=2, verbose=True, device='cpu', lr=1e-4, fp16=False, multiple_gpu=False):
+    def __init__(self, model, epoch_size=10000000, print_interval=2, verbose=True, device='cpu', lr=1e-4, fp16=False, gpus=[0]):
         self.model = model.to(device)
         self.device = device
         self.criterion = nn.CrossEntropyLoss()
@@ -20,8 +20,8 @@ class Trainer:
         if fp16:
             from apex import amp
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2")
-        if multiple_gpu and not fp16 and device != 'cpu':
-            self.model = torch.nn.DataParallel(self.model, device_ids=[0,1])
+        if not fp16 and device != 'cpu':
+            self.model = torch.nn.DataParallel(self.model, device_ids=gpus)
 
     def load_model(self, path):
         if os.path.exists(path):
@@ -31,14 +31,14 @@ class Trainer:
     def forward(self, batch, tune=False):
         self.optimizer.zero_grad()
         if not tune:
-            local_batch, local_labels, batch_mask, batch_length, batch_pos = batch
+            local_batch, local_labels, batch_length, batch_pos, batch_langs, batch_mask = batch
             if self.model.training:
-                loss = self.model.forward(local_batch, batch_length, batch_pos, batch_mask, local_labels, with_prob=False)
+                loss = self.model.forward(local_batch, batch_length, batch_pos, batch_langs, batch_mask, local_labels, with_prob=False)
             else:
-                local_labels, pred_labels, loss = self.model.forward(local_batch, batch_length, batch_pos, batch_mask, local_labels, with_prob=True)
+                local_labels, pred_labels, loss = self.model.forward(local_batch, batch_length, batch_pos, batch_langs, batch_mask, local_labels, with_prob=True)
         else:
-            local_batch, batch_length, batch_pos, local_labels = batch
-            pred_labels = self.model.forward(local_batch, batch_length, batch_pos)
+            local_batch, local_labels, batch_length, batch_pos, batch_langs = batch
+            pred_labels = self.model.forward(local_batch, batch_length, batch_langs, batch_pos)
             loss = self.criterion(pred_labels, local_labels)
         if self.model.training:
             return loss
