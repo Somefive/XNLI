@@ -38,7 +38,7 @@ class Trainer:
                 local_labels, pred_labels, loss = self.model.forward(local_batch, batch_length, batch_pos, batch_mask, local_labels, with_prob=True)
         else:
             local_batch, batch_length, batch_pos, local_labels = batch
-            pred_labels = self.model.classify(local_batch, batch_length, batch_pos)
+            pred_labels = self.model.forward(local_batch, batch_length, batch_pos)
             loss = self.criterion(pred_labels, local_labels)
         if self.model.training:
             return loss
