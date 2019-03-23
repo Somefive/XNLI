@@ -86,7 +86,7 @@ if __name__ == '__main__':
         'epoch_size': args.epoch_size,
         'print_interval': args.print_interval,
         'verbose': args.verbose,
-	'lr': args.lr,
+        'lr': args.lr,
         'fp16': args.fp16,
         'gpus': args.gpus,
         'device': args.device
