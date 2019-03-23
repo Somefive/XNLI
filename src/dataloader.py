@@ -30,6 +30,7 @@ def load_vocab(filenames, size=20000):
     dico['<POS>'] = POS_IDX
     for token, cnt in counter.most_common(size-len(dico)):
         dico[token] = len(dico)
+    print('Vocab size is %d' % len(dico))
     return dico, counter
 
 def line2id(line, dico):
@@ -80,16 +81,16 @@ def load_LM_data(filename, dico, maxlines=100000):
     data = []
     if len(filename) == 2:
         filename1, filename2 = filename
-        lang1, lang2 = extract_lang(filename1), extract_lang(filename2)
+        lang1, lang2 = LANG_DICT[extract_lang(filename1)], LANG_DICT[extract_lang(filename2)]
         for _, line1, line2 in tqdm(zip(range(maxlines), open(filename1), open(filename2)), leave=False):
             seq1, seq2 = _extract(line1, dico), _extract(line2, dico)
             data.append(((seq1, seq2), (lang1, lang2)))
         print('load %d parallel data from %s & %s' % (len(data), filename1, filename2))
     else:
-        lang = extract_lang(filename)
+        lang = LANG_DICT[extract_lang(filename)]
         for _, line in tqdm(zip(range(maxlines), open(filename)), leave=False):
             seq = _extract(line, dico)
-            data.append(((seq), (lang)))
+            data.append(((seq, ), (lang, )))
         print('load %d single data from %s' % (len(data), filename))
     return data
 

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 
 def gelu(x):
-    return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    return 0.5 * x * (1 + torch.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
 
 class MultiHeadAttention(nn.Module):
@@ -130,7 +130,7 @@ class Transformer(nn.Module):
         rng = torch.arange(seq_len, dtype=torch.long, device=length.device)
         self_mask = rng < length[:, None]
         x = self.embed(x)
-        x = x + self.pe(pos) + self.lang_embed(n_langs)
+        x = x + self.pe(pos) + self.lang_embed(langs)
         enc_output = x
         for encoder in self.encoders:
             enc_output = encoder(enc_output, self_mask)
@@ -145,7 +145,8 @@ class Transformer(nn.Module):
 
     def forward(self, x, length, pos, langs, mask=None, y=None, with_prob=False):
         if mask is None:
-            return self.xnli_fc(self.encode(x, length, pos, langs)[:,0,:].squeeze()) 
+            return self.xnli_fc(self.encode(x, length, pos, langs)[:,0,:].squeeze())
+        mask = mask.byte() 
         hidden_state = self.encode(x, length, pos, langs)
         hidden_state_masked = torch.masked_select(hidden_state, mask[:,:,None]).view(-1, self.dim)
         y_masked = torch.masked_select(y, mask)

@@ -83,10 +83,10 @@ class MaskedDataset(torch.utils.data.Dataset):
         self.max_seq_len = max_seq_len
         unk_rate = sum([seq.count(UNK_IDX) / len(seq) for seqs, _ in self.data for seq in seqs]) / self.size * 100
         avg_seq_len = sum([len(seq) for seqs, _ in self.data for seq in seqs]) / self.size
-        print('[MaskedDataset] load %s data. %.2f <UNK>. Avg Length: %.2f.' % (self.size, unk_rate, avg_seq_len))
+        print('[MaskedDataset] load %s data. %.2f%% <UNK>. Avg Length: %.2f.' % (self.size, unk_rate, avg_seq_len))
     
     def __len__(self):
-        return self.data
+        return len(self.data)
     
     def __getitem__(self, index):
         seqs, langs = self.data[index]
@@ -121,5 +121,5 @@ def collate_fn_masked(data):
     ls = torch.LongTensor(ls)
     poss = pad_sequence([torch.LongTensor(pos) for pos in poss], batch_first=True, padding_value=0)
     langs = pad_sequence([torch.LongTensor(lang) for lang in langs], batch_first=True, padding_value=0)
-    masks = pad_sequence([torch.ByteTensor(mask) for mask in masks], batch_first=True, padding_value=0)
+    masks = pad_sequence([torch.LongTensor(mask * 1) for mask in masks], batch_first=True, padding_value=0)
     return xs, ys, ls, poss, langs, masks

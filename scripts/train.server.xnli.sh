@@ -21,14 +21,14 @@ python src/train.py \
 --print_interval 1 \
 --verbose True \
 \
---mlm_train_set_size 5000000 \
+--mlm_train_set_size 50000 \
 --mlm_valid_set_size 5000 \
 --tlm_train_set_size 100000 \
 --tlm_valid_set_size 5000 \
 --xnli_train_set_size 400000 \
 --xnli_valid_set_size 2500 \
 \
---tlm True \
+--mlm True \
 --xnli False \
 \
 --vocab_path vocab_xnli_15  \
@@ -40,6 +40,6 @@ python src/train.py \
 --xnli_valid_paths s1.en s2.en label.en s1.fr s2.fr label.fr s1.de s2.de label.de \
 \
 --device cuda:0 \
---gpus 0,1 \
+--gpus 0,1,2 \
 --fp16 False \
 --lr 2e-4

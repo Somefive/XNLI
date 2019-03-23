@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     args = parse_args()
 
-    dico, token_counter = load_vocab(extract_path(args.vocab_paths, prefix='data/vocab/'))
+    dico, token_counter = load_vocab(extract_path(args.vocab_paths, prefix='data/vocab/'), size=args.vocab_size)
 
     generator_params = {
         'batch_size': args.batch_size, 
