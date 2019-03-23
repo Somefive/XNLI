@@ -73,18 +73,17 @@ def composed_dataloader(dataloader1, dataloader2):
 
 
 
-class MaskedDataset(torch.utils.data.Dataset)：
+class MaskedDataset(torch.utils.data.Dataset):
 
     def __init__(self, dico, filenames, maxlines=1e8, max_seq_len=256):
         self.data = []
         for filename in filenames:
-            self.data += load_LM_data(filename, dico, max_seq_len, maxlines)
-        self.size, self.vocab_size = len(data), len(dico)
+            self.data += load_LM_data(filename, dico, maxlines)
+        self.size, self.vocab_size = len(self.data), len(dico)
         self.max_seq_len = max_seq_len
-        unk_rate = sum([seq.count(UNK_IDX) / len(seq) for seq in seqs for seqs, _ in self.data]) / self.size * 100
-        avg_seq_len = sum([len(d[0]) for seq in seqs for seqs, _ in self.data]) / self.size
-        print('[MaskedDataset] load %s data. %.2f\% <UNK>. Avg Length: %.2f.' % (self.size, unk_rate, avg_seq_len))
-        return data
+        unk_rate = sum([seq.count(UNK_IDX) / len(seq) for seqs, _ in self.data for seq in seqs]) / self.size * 100
+        avg_seq_len = sum([len(seq) for seqs, _ in self.data for seq in seqs]) / self.size
+        print('[MaskedDataset] load %s data. %.2f <UNK>. Avg Length: %.2f.' % (self.size, unk_rate, avg_seq_len))
     
     def __len__(self):
         return self.data

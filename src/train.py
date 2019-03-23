@@ -79,9 +79,7 @@ if __name__ == '__main__':
     }
     dataset_params = {
         'dico': dico,
-        'vocab_size': args.vocab_size, 
-        'max_seq_len': args.max_seq_len, 
-        'alpha': 0.5
+        'max_seq_len': args.max_seq_len 
     }
     trainer_params = {
         'epoch_size': args.epoch_size,
@@ -110,17 +108,17 @@ if __name__ == '__main__':
 
     if args.mlm or args.xlm:
         train_mlm_data_generator = MaskedDataset(filenames=extract_path(args.mlm_train_paths, prefix='data/mlm/', suffix='.train'), 
-                                                 dataset_size=args.mlm_train_set_size, **dataset_params).get_generator(
+                                                 maxlines=args.mlm_train_set_size, **dataset_params).get_generator(
                                                  params=generator_params) if args.mlm_train_paths is not None else None
         valid_mlm_data_generator = MaskedDataset(filenames=extract_path(args.mlm_valid_paths, prefix='data/mlm/', suffix='.valid'), 
-                                                 dataset_size=args.mlm_valid_set_size, **dataset_params).get_generator(
+                                                 maxlines=args.mlm_valid_set_size, **dataset_params).get_generator(
                                                  params=generator_params) if args.mlm_valid_paths is not None else None
     if args.tlm or args.xlm:
         train_tlm_data_generator = MaskedDataset(filenames=extract_path(args.tlm_train_paths, prefix='data/tlm/', suffix='.train', groupby=2),
-                                                 dataset_size=args.tlm_train_set_size, **dataset_params).get_generator(
+                                                 maxlines=args.tlm_train_set_size, **dataset_params).get_generator(
                                                  params=generator_params) if args.tlm_train_paths is not None else None
         valid_tlm_data_generator = MaskedDataset(filenames=extract_path(args.tlm_valid_paths, prefix='data/tlm/', suffix='.valid', groupby=2), 
-                                                 dataset_size=args.tlm_valid_set_size, **dataset_params).get_generator(
+                                                 maxlines=args.tlm_valid_set_size, **dataset_params).get_generator(
                                                  params=generator_params) if args.tlm_valid_paths is not None else None
     if args.xnli:
         train_xnli_data_generator = XLMDataset(filenames=extract_path(args.xnli_train_paths, prefix='data/xnli/train.', groupby=3),

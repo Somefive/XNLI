@@ -1,7 +1,7 @@
 #!/bin/bash
 python src/train.py \
---load_path model/en-fr-mlm \
---save_path model/en-fr-mlm \
+--load_path model/mlm \
+--save_path model/mlm \
 --save_path_inc 0 \
 --vocab_size 80000 \
 --max_seq_len 256 \
@@ -9,9 +9,9 @@ python src/train.py \
 --shuffle True \
 --num_workers 12 \
 \
---model_n_layers 4 \
---model_dim 256 \
---model_d_ff 512 \
+--model_n_layers 6 \
+--model_dim 512 \
+--model_d_ff 1024 \
 --model_dropout 0.1 \
 --model_heads 8 \
 --model_encoder_only True \
@@ -21,14 +21,14 @@ python src/train.py \
 --print_interval 1 \
 --verbose True \
 \
---mlm_train_set_size 50000 \
+--mlm_train_set_size 5000000 \
 --mlm_valid_set_size 5000 \
---tlm_train_set_size 10000000 \
+--tlm_train_set_size 100000 \
 --tlm_valid_set_size 5000 \
 --xnli_train_set_size 400000 \
 --xnli_valid_set_size 2500 \
 \
---mlm True \
+--tlm True \
 --xnli False \
 \
 --vocab_path vocab_xnli_15  \
@@ -37,9 +37,9 @@ python src/train.py \
 --tlm_train_paths en-fr.en en-fr.fr \
 --tlm_valid_paths en-fr.en en-fr.fr \
 --xnli_train_paths s1.en s2.en label.en \
---xnli_valid_paths s1.en s2.en label.en s1.fr s2.fr label.fr \
+--xnli_valid_paths s1.en s2.en label.en s1.fr s2.fr label.fr s1.de s2.de label.de \
 \
 --device cuda:0 \
---multiple_gpu True \
+--gpus 0,1 \
 --fp16 False \
 --lr 2e-4
