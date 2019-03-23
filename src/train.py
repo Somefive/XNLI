@@ -123,19 +123,19 @@ if __name__ == '__main__':
                                                  params=generator_params) if args.tlm_valid_paths is not None else None
     if args.xnli:
         train_xnli_data_generator = XNLIDataset(lang='en', type_='train',
-                                                dataset_size=args.xnli_train_set_size, **dataset_params).get_generator(
+                                                maxlines=args.xnli_train_set_size, **dataset_params).get_generator(
                                                 params=generator_params)
         valid_xnli_data_generators = dict()
         if args.xnli_langs is not None:
             for lang in args.xnli_langs:
-                valid_xnli_data_generators[lang] = XNLIDataset(lang=lang, type='valid',
-                                                               dataset_size=args.xnli_valid_set_size, **dataset_params).get_generator(
+                valid_xnli_data_generators[lang] = XNLIDataset(lang=lang, type_='valid',
+                                                               maxlines=args.xnli_valid_set_size, **dataset_params).get_generator(
                                                                params=generator_params)
         test_xnli_data_generators = dict()
         if args.xnli_langs is not None:
             for lang in args.xnli_langs:
-                test_xnli_data_generators[lang] = XNLIDataset(lang=lang, type='test',
-                                                               dataset_size=args.xnli_test_set_size, **dataset_params).get_generator(
+                test_xnli_data_generators[lang] = XNLIDataset(lang=lang, type_='test',
+                                                               maxlines=args.xnli_test_set_size, **dataset_params).get_generator(
                                                                params=generator_params)
     print('data prepared')
 

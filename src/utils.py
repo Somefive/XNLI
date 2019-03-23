@@ -19,4 +19,4 @@ def extract_path(paths, prefix=None, suffix=None, groupby=1):
     return paths
             
 def extract_lang(filename, end=False):
-    return filename[filename.rindex('.')-2:filename.rindex('.')]
+    return filename[filename.rindex('.')-2:filename.rindex('.')] if not end else filename[-2:]

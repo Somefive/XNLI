@@ -78,11 +78,11 @@ def load_xnli_data(filename1, filename2, filename3, dico, max_seq_len=64, maxlin
 def _extract(line, dico):
     return [POS_IDX] + line2id(line, dico) + [POS_IDX]
 
-def load_LM_data(filename, dico, maxlines=100000):
+def load_LM_data(filename, dico, maxlines=100000, lang_end=False):
     data = []
-    elif len(filename) == 2:
+    if len(filename) == 2:
         filename1, filename2 = filename
-        lang1, lang2 = LANG_DICT[extract_lang(filename1)], LANG_DICT[extract_lang(filename2)]
+        lang1, lang2 = LANG_DICT[extract_lang(filename1, lang_end)], LANG_DICT[extract_lang(filename2, lang_end)]
         for _, line1, line2 in tqdm(zip(range(maxlines), open(filename1), open(filename2)), leave=False):
             seq1, seq2 = _extract(line1, dico), _extract(line2, dico)
             data.append(((seq1, seq2), (lang1, lang2)))

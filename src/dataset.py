@@ -128,8 +128,8 @@ def collate_fn_masked(data):
 class XNLIDataset(torch.utils.data.Dataset):
 
     def __init__(self, dico, lang, type_, maxlines=1e8, max_seq_len=256):
-        s1_path, s2_path, label_path = ['data/vocab/xnli/%s.%s.%s' % (type_, t, lang) for t in ['s1', 's2', 'label']]
-        self.data = load_LM_data([s1_path, s2_path], dico, maxlines)
+        s1_path, s2_path, label_path = ['data/xnli/%s.%s.%s' % (type_, t, lang) for t in ['s1', 's2', 'label']]
+        self.data = load_LM_data([s1_path, s2_path], dico, maxlines, True)
         self.labels = [CLASS2ID[line.strip()] for line in open(label_path)]
         self.size, self.vocab_size = len(self.data), len(dico)
         self.max_seq_len = max_seq_len
@@ -141,7 +141,7 @@ class XNLIDataset(torch.utils.data.Dataset):
         return self.size
     
     def __getitem__(self, index):
-        seqs, langs, label = self.data[index], self.labels[index]
+        (seqs, langs), label = self.data[index], self.labels[index]
         if np.random.rand() < 0.5:
             seq1, seq2 = seqs
             lang1, lang2 = langs
