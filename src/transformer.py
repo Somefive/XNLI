@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.init
 
 
 def gelu(x):
@@ -27,6 +28,10 @@ class MultiHeadAttention(nn.Module):
             self.softmax = nn.Softmax(dim=-1)
             self.res_dropout = nn.Dropout(dropout)
             self.layer_norm = nn.LayerNorm(dim)
+            torch.nn.init.xavier_uniform(self.fc_Q.weight)
+            torch.nn.init.xavier_uniform(self.fc_K.weight)
+            torch.nn.init.xavier_uniform(self.fc_V.weight)
+            torch.nn.init.xavier_uniform(self.fc.weight)
 
         def forward(self, q, k, v, mask):
             batch_size, qlen, dim = q.size()
@@ -75,6 +80,8 @@ class PositionalWiseFeedForward(nn.Module):
         self.fc2 = nn.Linear(d_ff, dim)
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(dim)
+        torch.nn.init.xavier_uniform(self.fc1.weight)
+        torch.nn.init.xavier_uniform(self.fc2.weight)
 
     def forward(self, x):
         res = x
@@ -124,6 +131,10 @@ class Transformer(nn.Module):
             ])
         self.pred = nn.AdaptiveLogSoftmaxWithLoss(in_features=dim, n_classes=vocab_size, cutoffs=[8000, 20000], head_bias=True)
         self.xnli_fc = nn.Linear(dim, 3)
+        torch.nn.init.xavier_uniform(self.embed.weight)
+        torch.nn.init.xavier_uniform(self.lang_embed.weight)
+        torch.nn.init.xavier_uniform(self.pred.weight)
+        torch.nn.init.xavier_uniform(self.xnli_fc.weight)
 
     def encode(self, x, length, pos, langs):
         batch_size, seq_len = x.size()
