@@ -13,6 +13,7 @@ POS_IDX = 3
 BGN_IDX = 4
 
 LANG_DICT = {lang: idx for idx, lang in enumerate('ar bg de el en es fr hi ru sw th tr ur vi zh'.split(' '))}
+CLASS2ID = {'neutral': 0, 'entailment': 1, 'contradiction': 2}
 
 def load_vocab(filenames, size=20000):
     counter = Counter()
@@ -79,7 +80,7 @@ def _extract(line, dico):
 
 def load_LM_data(filename, dico, maxlines=100000):
     data = []
-    if len(filename) == 2:
+    elif len(filename) == 2:
         filename1, filename2 = filename
         lang1, lang2 = LANG_DICT[extract_lang(filename1)], LANG_DICT[extract_lang(filename2)]
         for _, line1, line2 in tqdm(zip(range(maxlines), open(filename1), open(filename2)), leave=False):

@@ -86,7 +86,7 @@ class MaskedDataset(torch.utils.data.Dataset):
         print('[MaskedDataset] load %s data. %.2f%% <UNK>. Avg Length: %.2f.' % (self.size, unk_rate, avg_seq_len))
     
     def __len__(self):
-        return len(self.data)
+        return self.size
     
     def __getitem__(self, index):
         seqs, langs = self.data[index]
@@ -123,3 +123,47 @@ def collate_fn_masked(data):
     langs = pad_sequence([torch.LongTensor(lang) for lang in langs], batch_first=True, padding_value=0)
     masks = pad_sequence([torch.LongTensor(mask * 1) for mask in masks], batch_first=True, padding_value=0)
     return xs, ys, ls, poss, langs, masks
+
+
+class XNLIDataset(torch.utils.data.Dataset):
+
+    def __init__(self, dico, lang, type_, maxlines=1e8, max_seq_len=256):
+        s1_path, s2_path, label_path = ['data/vocab/xnli/%s.%s.%s' % (type_, t, lang) for t in ['s1', 's2', 'label']]
+        self.data = load_LM_data([s1_path, s2_path], dico, maxlines)
+        self.labels = [CLASS2ID[line.strip()] for line in open(label_path)]
+        self.size, self.vocab_size = len(self.data), len(dico)
+        self.max_seq_len = max_seq_len
+        unk_rate = sum([seq.count(UNK_IDX) / len(seq) for seqs, _ in self.data for seq in seqs]) / self.size * 100
+        avg_seq_len = sum([len(seq) for seqs, _ in self.data for seq in seqs]) / self.size
+        print('[MaskedDataset] load %s data. %.2f%% <UNK>. Avg Length: %.2f.' % (self.size, unk_rate, avg_seq_len))
+    
+    def __len__(self):
+        return self.size
+    
+    def __getitem__(self, index):
+        seqs, langs, label = self.data[index], self.labels[index]
+        if np.random.rand() < 0.5:
+            seq1, seq2 = seqs
+            lang1, lang2 = langs
+        else:
+            seq2, seq1 = seqs
+            lang2, lang1 = langs
+        seq = seq1 + seq2
+        langs = [lang1] * len(seq1) + [lang2] * len(seq2)
+        pos = list(range(len(seq1))) + list(range(len(seq2)))
+        data, langs, pos = seq[:self.max_seq_len], langs[:self.max_seq_len], pos[:self.max_seq_len]
+        return data, label, len(seq), pos, langs
+
+    def get_generator(self, params={}):
+        params['collate_fn'] = collate_fn_xnli
+        return torch.utils.data.DataLoader(self, **params)
+
+
+def collate_fn_xnli(data):
+    xs, ys, ls, poss, langs = zip(*data)
+    xs = pad_sequence([torch.LongTensor(x) for x in xs], batch_first=True, padding_value=PAD_IDX)
+    ys = torch.LongTensor(ys)
+    ls = torch.LongTensor(ls)
+    poss = pad_sequence([torch.LongTensor(pos) for pos in poss], batch_first=True, padding_value=0)
+    langs = pad_sequence([torch.LongTensor(lang) for lang in langs], batch_first=True, padding_value=0)
+    return xs, ys, ls, poss, langs
