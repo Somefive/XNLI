@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/biN/BASH
 python src/train.py \
 --load_path model/mlm \
 --save_path model/mlm \
@@ -9,9 +9,9 @@ python src/train.py \
 --shuffle True \
 --num_workers 12 \
 \
---model_n_layers 6 \
---model_dim 512 \
---model_d_ff 1024 \
+--model_n_layers 4 \
+--model_dim 256 \
+--model_d_ff 512 \
 --model_dropout 0.1 \
 --model_heads 8 \
 --model_encoder_only True \
@@ -42,4 +42,4 @@ python src/train.py \
 --device cuda:0 \
 --gpus 0,1,2 \
 --fp16 False \
---lr 2e-4
+--lr 2e-3
