@@ -24,7 +24,10 @@ fi
 # Chinese segmenter
 if ! ls $TOOLS_PATH/stanford-segmenter-* 1> /dev/null 2>&1; then
    echo "Stanford segmenter not found at $TOOLS_PATH/stanford-segmenter-*"
-   echo "Please install Stanford segmenter in $TOOLS_PATH"
+   #echo "Please install Stanford segmenter in $TOOLS_PATH"
+   echo "installing Stanford Segmenter in $TOOLS_PATH"
+   wget -nc https://nlp.stanford.edu/software/stanford-segmenter-2018-10-16.zip
+   unzip stanford-segmenter-2018-10-16.zip
    exit 1
 fi
  
