@@ -5,6 +5,22 @@ Among the three models they attempted, in this project we decided to reimplement
 # Prereqs
 The tools/ directory is copied from https://github.com/facebookresearch/XLM. The `tokenizer.py` inside is necessary for XNLI data processing.
 
+# Data
+ar: Arabic
+bg: Bulgarian
+de: German
+el: Greek
+en: English
+es: Spanish
+fr: French
+hi: Hindi
+ru: Russian
+sw: Swahili
+th: Thai
+tr: Turkish
+ur: Urdu
+vi: Vietnamese
+zh: Chinese (Simplified)
 
 # Implementation
 
