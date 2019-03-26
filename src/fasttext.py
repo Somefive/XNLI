@@ -17,11 +17,25 @@ def load_fasttext(filename, dico, dim=300):
     for line in tqdm(fp):
         data = line.strip().split()
         if data[0] in dico:
-            weight[dico[data[0]]] = np.asarray(float(d) for d in data[1:])
+            weight[dico[data[0]]] = np.asarray([float(d) for d in data[1:]])
             loaded.add(data[0])
     fp.close()
     print('load %d pretrained weight' % len(loaded))
     return weight
+
+def load_data(filename):
+    return [line.lower().split(' ') for line in open(filename)]
+
+LABEL_DICT = {'neutral': 0, 'entailment': 1, 'contradiction': 2}
+def load_label(filename):
+    return [LABEL_DICT[line.strip()] for line in open(filename)]
+
+def convert(lines, dico):
+    return [[dico[word] if word in dico else UNK_IDX for word in line] for line in lines]
+
+def load_dataset(filename, dico):
+    s1, s2 = load_data(filename % 's1'), load_data(filename % 's2')
+    return convert(s1, dico), convert(s2, dico), load_label(filename % 'label')
 
 PAD_IDX = 0
 BOS_IDX = 1
@@ -97,3 +111,4 @@ class MimicEncoderModel(nn.Module):
 
 
 if __name__ == '__main__':
+    pass
