@@ -35,7 +35,7 @@ def load_vocab(filenames, size=20000):
     return dico, counter
 
 def line2id(line, dico):
-    return [dico[token] if token in dico else UNK_IDX for token in line.strip().split(' ')]
+    return [dico[token] if token in dico else UNK_IDX for token in line.lower().strip().split(' ')]
 
 def load_monolingual_data(filename, dico, max_seq_len=64, maxlines=100000):
     data, n = [POS_IDX], 0
