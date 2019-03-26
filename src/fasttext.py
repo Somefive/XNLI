@@ -34,13 +34,23 @@ def load_dataset(filename, dico):
     fp.readline()
     data = []
     unk_rate = 0
-    for line in fp:
-        s1, s2, label = line.split('\t')
+    for line in tqdm(fp):
+        s1, s2, label = line.strip().split('\t')
         s1, s2, label = convert(s1, dico), convert(s2, dico), LABEL_DICT[label]
         unk_rate += s1.count(UNK_IDX) / len(s1) + s2.count(UNK_IDX) / len(s2)
         data.append((s1, s2, label))
     fp.close()
     print('load %d data from %s. <unk> rate is %.3f.' % (len(data), filename, unk_rate / len(data) / 2))
+    return data
+
+def load_parallel_dataset(filename1, dico1, filename2, dico2):
+    data = []
+    unk_rate = 0
+    for line1, line2 in zip(open(filename1), open(filename2)):
+        line1, line2 = convert(line1, dico1), convert(line2, dico2)
+        unk_rate += line1.count(UNK_IDX) / len(line1) + line22.count(UNK_IDX) / len(line2)
+        data.append((line1, line2))
+    print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
 
 PAD_IDX = 0
