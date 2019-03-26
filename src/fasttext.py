@@ -93,7 +93,7 @@ class ClassifierModel(nn.Module):
         x, _ = self.lstm(self.embed(x)) # batch_size, seq_len, 2*lstm_hidden_size
         y, _ = self.lstm(self.embed(y))
         (x, _), (y, _) = torch.max(x, dim=1), torch.max(y, dim=1)
-        z = torch.cat([x, y, torch.abs(x-y), x*y])
+        z = torch.cat([x, y, torch.abs(x-y), x*y], dim=1)
         return self.fc2(self.dropout(self.fc1(z)))
 
 
@@ -189,7 +189,7 @@ def collate_fn_par(data):
 DEVICE='cuda:0'
 MAX_EPOCH=10
 
-def go_xnli(train=True, model, optimizer, criterion, generator, model_path=None):
+def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
     model.train(train)
     optimizer.zero_grad()
     pbar = tqdm(enumerate(generator), ncols=0)
