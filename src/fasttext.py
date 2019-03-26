@@ -16,26 +16,32 @@ def load_fasttext(filename, dico, dim=300):
     fp.readline()
     for line in tqdm(fp):
         data = line.strip().split()
-        if data[0] in dico:
-            weight[dico[data[0]]] = np.asarray([float(d) for d in data[1:]])
-            loaded.add(data[0])
+        token = ' '.join(data[:-dim])
+        if token in dico:
+            weight[dico[token]] = np.asarray([float(d) for d in data[-dim:]])
+            loaded.add(token)
     fp.close()
     print('load %d pretrained weight' % len(loaded))
     return weight
 
-def load_data(filename):
-    return [line.lower().split(' ') for line in open(filename)]
-
 LABEL_DICT = {'neutral': 0, 'entailment': 1, 'contradiction': 2}
-def load_label(filename):
-    return [LABEL_DICT[line.strip()] for line in open(filename)]
 
-def convert(lines, dico):
-    return [[dico[word] if word in dico else UNK_IDX for word in line] for line in lines]
+def convert(line, dico):
+    return [dico[word] if word in dico else UNK_IDX for word in line.strip().lower().split()]
 
 def load_dataset(filename, dico):
-    s1, s2 = load_data(filename % 's1'), load_data(filename % 's2')
-    return convert(s1, dico), convert(s2, dico), load_label(filename % 'label')
+    fp = open(filename, encoding='utf-8')
+    fp.readline()
+    data = []
+    unk_rate = 0
+    for line in fp:
+        s1, s2, label = line.split('\t')
+        s1, s2, label = convert(s1, dico), convert(s2, dico), LABEL_DICT[label]
+        unk_rate += s1.count(UNK_IDX) / len(s1) + s2.count(UNK_IDX) / len(s2)
+        data.append((s1, s2, label))
+    fp.close()
+    print('load %d data from %s. <unk> rate is %.3f.' % (len(data), filename, unk_rate / len(data) / 2))
+    return data
 
 PAD_IDX = 0
 BOS_IDX = 1
