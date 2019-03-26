@@ -26,15 +26,15 @@ echo "*** Downloading word embeddings from fastText ***"
 for lg in ar bg de el en es fr hi ru sw th tr ur vi zh; do
   echo "*** Downloading word embeddings from fastText for $lg ***"
 
-  BIN-link = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc."
-  BIN-ext = ".300.bin.gz"# extension
+  #BIN-link = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc."
+  #BIN-ext = ".300.bin.gz"# extension
   TXT-link = "https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc."
   TXT-ext = ".300.vec.gz"
   
-  BINurl = "$BIN-link$lg$BIN-ext"
+  #BINurl = "$BIN-link$lg$BIN-ext"
   TXTurl = "$TXT-link$lg$TXT-ext"
 
-  wget $BINurl
+  #wget $BINurl
   wget $TXTurl
-  # decompress?
+  gzip -d "$lg$TXT-ext"
 done
