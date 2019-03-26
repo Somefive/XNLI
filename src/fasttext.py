@@ -9,6 +9,7 @@ import torch.utils.data
 import torch.optim as optim
 from torch.nn.utils.rnn import pad_sequence
 import pickle
+import string
 
 def load_dicos(filenames):
     return [pickle.load(open(filename, 'rb')) for filename in filenames]
@@ -29,9 +30,10 @@ def load_fasttext(filename, dico, dim=300):
     return weight
 
 LABEL_DICT = {'neutral': 0, 'entailment': 1, 'contradiction': 2}
+TABLE = str.maketrans(string.punctuation+string.digits, ' '*len(string.punctuation+string.digits))
 
 def convert(line, dico):
-    return [BOS_IDX] + [dico[word] if word in dico else UNK_IDX for word in line.strip().lower().split()] + [EOS_IDX]
+    return [BOS_IDX] + [dico[word] if word in dico else UNK_IDX for word in line.strip().lower().translate(TABLE).split()] + [EOS_IDX]
 
 def load_dataset(filename, dico):
     fp = open(filename, encoding='utf-8')
@@ -72,6 +74,43 @@ def get_vocab(filename, size=40000):
     print('%d unique word found. Generate vocab with %d words.' % (len(counter), len(dico)))
     return dico
 
+def get_vocab_and_weight(filename, weight_filename, size=80000):
+    with open(weight_filename) as f:
+        weights = {}
+        n, d = map(int, f.readline().rstrip().split())
+        for line in tqdm(f):
+            tokens = line.rstrip().split()
+            w = np.array(list(map(float, tokens[-d:])))
+            token = ' '.join(tokens[:-d])
+            weights[token] = w
+        print('%d weights, dim=%d.' % (n, d))
+    with open(filename) as f:
+        counter = Counter()
+        for line in tqdm(f):
+            counter.update(line.lower().translate(TABLE).rstrip().split())
+        dico = {'<pad>': PAD_IDX, '<s>': BOS_IDX, '</s>': EOS_IDX, '<unk>': UNK_IDX}
+        unks = []
+        for word, cnt in counter.most_common():
+            if word in weights:
+                dico[word] = len(dico)
+            else:
+                unks.append((word, cnt))
+        print('%d word loaded. %d unks.' % (len(dico), len(unks)))
+    return weights, dico, unks
+
+def resolve_dico_and_weights(weights, dico, size=200000, dim=300):
+    w = np.zeros((size, dim))
+    _dico = {}
+    for token, idx in dico.items():
+        if token in weights and idx < size:
+            w[idx] = weights[token]
+        if idx < size:
+            _dico[token] = idx
+    return w, _dico
+
+def preprocess():
+    weights, dico, unks = get_vocab_and_weight('data/para/en-fr.en.all', 'data/embed/en')
+    
 
 class ClassifierModel(nn.Module):
 
@@ -88,13 +127,14 @@ class ClassifierModel(nn.Module):
         self.fc1 = nn.Linear(in_features=8*lstm_hidden_dim, out_features=fc_hidden_dim, bias=True)
         self.dropout = nn.Dropout(p=0.1)
         self.fc2 = nn.Linear(in_features=fc_hidden_dim, out_features=3, bias=True)
+        self.relu = nn.ReLU()
 
     def forward(self, x, y):
         x, _ = self.lstm(self.embed(x)) # batch_size, seq_len, 2*lstm_hidden_size
         y, _ = self.lstm(self.embed(y))
         (x, _), (y, _) = torch.max(x, dim=1), torch.max(y, dim=1)
         z = torch.cat([x, y, torch.abs(x-y), x*y], dim=1)
-        return self.fc2(self.dropout(self.fc1(z)))
+        return self.fc2(self.dropout(self.relu(self.fc1(z))))
 
 
 class MimicEncoderModel(nn.Module):
@@ -199,28 +239,36 @@ def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
         optimizer.zero_grad()
         pred_labels = model(batch_X, batch_Y)
         loss = criterion(pred_labels, batch_labels)
-        loss.backward()
+        if train:
+            loss.backward()
+            optimizer.step()
         total_loss += loss.item()
         total_acc += (pred_labels.argmax(dim=1) == batch_labels).float().mean().item()
         if idx % 10 == 9:
             pbar.set_description('[%s] loss: %.4f acc: %.4f' % ('Train' if train else 'EVAL', total_loss / idx, total_acc / idx))
     if train and model_path is not None:
         torch.save(model.state_dict(), model_path)
+        print('model save to %s' % model_path)
+
+generator_params = {'batch_size': 128, 'shuffle': True, 'num_workers': 6}
 
 def train_nli():
     en_dico = pickle.load(open('data/dico/en', 'rb'))
-    model = ClassifierModel(vocab_size=80000).float().to(DEVICE)
+    model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
     if not os.path.exists('model/en-nli'):
-        model.embed.from_pretrained(np.load(open('data/embed/en', 'rb')))
-    model = torch.nn.DataParallel(model, device_ids=[0,1,2])
+        model.embed.from_pretrained(torch.as_tensor(np.load('data/weight/en')))
+        print('load pretrained weight')
+    if DEVICE != 'cpu':
+        model = torch.nn.DataParallel(model, device_ids=[0,1,2])
     if os.path.exists('model/en-nli'):
         model.load_state_dict(torch.load('model/en-nli'))
+        print('continuous training model')
     train_data = load_dataset('data/xnli/en.train', en_dico)
     valid_data = load_dataset('data/xnli/en.valid', en_dico)
     test_data = load_dataset('data/xnli/en.test', en_dico)
-    train_generator = NLIDataset(train_data).get_generator(params={'batch_size': 32, 'shuffle': True, 'num_workers': 6})
-    valid_generator = NLIDataset(valid_data).get_generator(params={'batch_size': 32, 'shuffle': True, 'num_workers': 6})
-    test_generator = NLIDataset(test_data).get_generator(params={'batch_size': 32, 'shuffle': True, 'num_workers': 6})
+    train_generator = NLIDataset(train_data).get_generator(generator_params)
+    valid_generator = NLIDataset(valid_data).get_generator(generator_params)
+    test_generator = NLIDataset(test_data).get_generator(generator_params)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.CrossEntropyLoss()
     for epoch in range(MAX_EPOCH):
