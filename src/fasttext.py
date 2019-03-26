@@ -108,9 +108,15 @@ def resolve_dico_and_weights(weights, dico, size=200000, dim=300):
             _dico[token] = idx
     return w, _dico
 
-def preprocess():
+def preprocess(size=200000):
     weights, dico, unks = get_vocab_and_weight('data/para/en-fr.en.all', 'data/embed/en')
-    
+    w, _dico = resolve_dico_and_weights(weights, dico, size)
+    np.save('data/weight/en', w)
+    np.save('data/dico/en', _dico)
+    weights, dico, unks = get_vocab_and_weight('data/para/en-fr.fr.all', 'data/embed/fr')
+    w, _dico = resolve_dico_and_weights(weights, dico, size)
+    np.save('data/weight/fr', w)
+    np.save('data/dico/fr', _dico)    
 
 class ClassifierModel(nn.Module):
 
@@ -254,7 +260,7 @@ generator_params = {'batch_size': 128, 'shuffle': True, 'num_workers': 6}
 
 def train_nli():
     en_dico = pickle.load(open('data/dico/en', 'rb'))
-    model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
+    model = ClassifierModel(vocab_size=200000).float().to(DEVICE)
     if not os.path.exists('model/en-nli'):
         model.embed.from_pretrained(torch.as_tensor(np.load('data/weight/en')))
         print('load pretrained weight')
@@ -269,7 +275,7 @@ def train_nli():
     train_generator = NLIDataset(train_data).get_generator(generator_params)
     valid_generator = NLIDataset(valid_data).get_generator(generator_params)
     test_generator = NLIDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=2e-4)
     criterion = nn.CrossEntropyLoss()
     for epoch in range(MAX_EPOCH):
         go_xnli(True, model, optimizer, criterion, train_generator, 'model/en-nli')
