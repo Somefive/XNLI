@@ -56,8 +56,8 @@ def load_parallel_dataset(filename1, dico1, filename2, dico2):
         line1, line2 = convert(line1, dico1), convert(line2, dico2)
         unk_rate += line1.count(UNK_IDX) / len(line1) + line2.count(UNK_IDX) / len(line2)
         data.append((line1, line2))
-        if len(data) > 10000:
-            break
+        #if len(data) > 10000:
+        #    break
     print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
 
@@ -175,6 +175,10 @@ class MimicEncoderModel(nn.Module):
         y, _ = self.lstm_par(self.embed_par(y))
         xc, _ = self.lstm(self.embed(xc))
         yc, _ = self.lstm_par(self.embed_par(yc))
+        x, _ = torch.max(x, dim=1)
+        y, _ = torch.max(y, dim=1)
+        xc, _ = torch.max(xc, dim=1)
+        yc, _ = torch.max(yc, dim=1)
         return self.l2(x, y) - self.lbda * (self.l2(xc, y) + self.l2(x, yc))
 
 
@@ -293,7 +297,7 @@ def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000)
     for idx, (batch_X, batch_Y, batch_Xc, batch_Yc) in pbar:
         batch_X, batch_Y, batch_Xc, batch_Yc = batch_X.to(DEVICE), batch_Y.to(DEVICE), batch_Xc.to(DEVICE), batch_Yc.to(DEVICE)
         optimizer.zero_grad()
-        loss = model(batch_X, batch_Y, batch_Xc, batch_Yc)
+        loss = model(batch_X, batch_Y, batch_Xc, batch_Yc).sum()
         if train:
             loss.backward()
             optimizer.step()
@@ -319,7 +323,7 @@ def train_par():
     print('PAR')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     fr_dico = pickle.load(open('data/dico/fr', 'rb'))
-    model = MimicEncoderModel(vocab_size=200000, par_vocab_size=20000).float().to(DEVICE)
+    model = MimicEncoderModel(vocab_size=200000, par_vocab_size=200000).float().to(DEVICE)
     if not os.path.exists('model/par'):
         weight = torch.load('model/en-nli')
         lstm_weight, embed_weight = extract_weight(weight, 'lstm'), extract_weight(weight, 'embed')
@@ -328,7 +332,7 @@ def train_par():
         model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr.npy')))
         print('load pretrained weight')        
     if DEVICE != 'cpu':
-        model = torch.nn.DataParallel(model, device_ids=[0,1,2])
+        model = torch.nn.DataParallel(model, device_ids=[0,1,2,3,4,5,6,7])
     if os.path.exists('model/par'):
         model.load_state_dict(torch.load('model/par'))
         print('continuous training model')
