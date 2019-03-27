@@ -52,10 +52,12 @@ def load_dataset(filename, dico):
 def load_parallel_dataset(filename1, dico1, filename2, dico2):
     data = []
     unk_rate = 0
-    for line1, line2 in zip(open(filename1), open(filename2)):
+    for line1, line2 in tqdm(zip(open(filename1), open(filename2))):
         line1, line2 = convert(line1, dico1), convert(line2, dico2)
         unk_rate += line1.count(UNK_IDX) / len(line1) + line2.count(UNK_IDX) / len(line2)
         data.append((line1, line2))
+        if len(data) > 10000:
+            break
     print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
 
@@ -233,7 +235,7 @@ def collate_fn_par(data):
     return xs, ys, xcs, ycs
 
 DEVICE='cuda:0'
-MAX_EPOCH=10
+MAX_EPOCH=100
 
 def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
     model.train(train)
@@ -288,7 +290,7 @@ def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000)
     optimizer.zero_grad()
     pbar = tqdm(enumerate(generator), ncols=0)
     total_loss = 0
-    for idx, (batch_X, batch_Y, batch_labels) in pbar:
+    for idx, (batch_X, batch_Y, batch_Xc, batch_Yc) in pbar:
         batch_X, batch_Y, batch_Xc, batch_Yc = batch_X.to(DEVICE), batch_Y.to(DEVICE), batch_Xc.to(DEVICE), batch_Yc.to(DEVICE)
         optimizer.zero_grad()
         loss = model(batch_X, batch_Y, batch_Xc, batch_Yc)
@@ -320,10 +322,10 @@ def train_par():
     model = MimicEncoderModel(vocab_size=200000, par_vocab_size=20000).float().to(DEVICE)
     if not os.path.exists('model/par'):
         weight = torch.load('model/en-nli')
-        lstm_weight, embed_weight = extract_weight('lstm'), extract_weight('embed')
+        lstm_weight, embed_weight = extract_weight(weight, 'lstm'), extract_weight(weight, 'embed')
         model.embed.load_state_dict(embed_weight)
         model.lstm.load_state_dict(lstm_weight)
-        model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr')))
+        model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr.npy')))
         print('load pretrained weight')        
     if DEVICE != 'cpu':
         model = torch.nn.DataParallel(model, device_ids=[0,1,2])
@@ -333,9 +335,9 @@ def train_par():
     train_data = load_parallel_dataset('data/para/en-fr.en.train', en_dico, 'data/para/en-fr.fr.train', fr_dico)
     valid_data = load_parallel_dataset('data/para/en-fr.en.valid', en_dico, 'data/para/en-fr.fr.valid', fr_dico)
     test_data = load_parallel_dataset('data/para/en-fr.en.test', en_dico, 'data/para/en-fr.fr.test', fr_dico)
-    train_generator = NLIDataset(train_data).get_generator(generator_params)
-    valid_generator = NLIDataset(valid_data).get_generator(generator_params)
-    test_generator = NLIDataset(test_data).get_generator(generator_params)
+    train_generator = ParallelDataset(train_data).get_generator(generator_params)
+    valid_generator = ParallelDataset(valid_data).get_generator(generator_params)
+    test_generator = ParallelDataset(test_data).get_generator(generator_params)
     optimizer = optim.Adam(model.parameters(), lr=2e-4)
     for epoch in range(MAX_EPOCH):
         go_par(True, model, optimizer, train_generator, 'model/par')
@@ -343,4 +345,5 @@ def train_par():
         go_par(False, model, optimizer, test_generator, None)
 
 if __name__ == '__main__':
-    train_nli()
+    #train_nli()
+    train_par()
