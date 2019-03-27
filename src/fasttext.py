@@ -49,14 +49,16 @@ def load_dataset(filename, dico):
     print('load %d data from %s. <unk> rate is %.3f.' % (len(data), filename, unk_rate / len(data) / 2))
     return data
 
+MAX_SEQ_LEN=256
+
 def load_parallel_dataset(filename1, dico1, filename2, dico2):
     data = []
     unk_rate = 0
     for line1, line2 in tqdm(zip(open(filename1), open(filename2))):
         line1, line2 = convert(line1, dico1), convert(line2, dico2)
         unk_rate += line1.count(UNK_IDX) / len(line1) + line2.count(UNK_IDX) / len(line2)
-        data.append((line1, line2))
-        #if len(data) > 10000:
+        data.append((line1[:MAX_SEQ_LEN], line2[:MAX_SEQ_LEN]))
+        #if len(data) >= 10000:
         #    break
     print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
@@ -267,12 +269,12 @@ generator_params = {'batch_size': 64, 'shuffle': True, 'num_workers': 12}
 def train_nli():
     print('NLI')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
-    model = ClassifierModel(vocab_size=200000).float().to(DEVICE)
+    model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
     if not os.path.exists('model/en-nli'):
         model.embed.from_pretrained(torch.as_tensor(np.load('data/weight/en.npy')))
         print('load pretrained weight')
     if DEVICE != 'cpu':
-        model = torch.nn.DataParallel(model, device_ids=[0,1,2])
+        model = torch.nn.DataParallel(model, device_ids=[0])
     if os.path.exists('model/en-nli'):
         model.load_state_dict(torch.load('model/en-nli'))
         print('continuous training model')
@@ -285,6 +287,7 @@ def train_nli():
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
     for epoch in range(MAX_EPOCH):
+        print('Epoch: %d' % epoch)
         go_xnli(True, model, optimizer, criterion, train_generator, 'model/en-nli')
         go_xnli(False, model, optimizer, criterion, valid_generator, None)
         go_xnli(False, model, optimizer, criterion, test_generator, None)
@@ -305,6 +308,7 @@ def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000)
         if idx % 10 == 9:
             pbar.set_description('[%s] loss: %.4f' % ('Train' if train else 'EVAL', total_loss / idx))
         if idx >= epoch_size:
+            pbar.close()
             break
     if train and model_path is not None:
         torch.save(model.state_dict(), model_path)
@@ -323,7 +327,7 @@ def train_par():
     print('PAR')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     fr_dico = pickle.load(open('data/dico/fr', 'rb'))
-    model = MimicEncoderModel(vocab_size=200000, par_vocab_size=200000).float().to(DEVICE)
+    model = MimicEncoderModel(vocab_size=100000, par_vocab_size=100000).float().to(DEVICE)
     if not os.path.exists('model/par'):
         weight = torch.load('model/en-nli')
         lstm_weight, embed_weight = extract_weight(weight, 'lstm'), extract_weight(weight, 'embed')
@@ -332,7 +336,7 @@ def train_par():
         model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr.npy')))
         print('load pretrained weight')        
     if DEVICE != 'cpu':
-        model = torch.nn.DataParallel(model, device_ids=[0,1,2,3,4,5,6,7])
+        model = torch.nn.DataParallel(model, device_ids=[0])
     if os.path.exists('model/par'):
         model.load_state_dict(torch.load('model/par'))
         print('continuous training model')
@@ -342,8 +346,9 @@ def train_par():
     train_generator = ParallelDataset(train_data).get_generator(generator_params)
     valid_generator = ParallelDataset(valid_data).get_generator(generator_params)
     test_generator = ParallelDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters(), lr=2e-4)
+    optimizer = optim.Adam(model.parameters())
     for epoch in range(MAX_EPOCH):
+        print('Epoch: %d' % epoch)
         go_par(True, model, optimizer, train_generator, 'model/par')
         go_par(False, model, optimizer, valid_generator, None)
         go_par(False, model, optimizer, test_generator, None)
