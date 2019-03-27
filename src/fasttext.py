@@ -304,13 +304,23 @@ def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000)
         torch.save(model.state_dict(), model_path)
         print('model save to %s' % model_path)
 
+def extract_weight(weight, name):
+    w = {}
+    for key in weight:
+        if key.startswith(name):
+            w[key[len(name)+1:]] = weight[key]
+        elif key.startswith('module.'+name):
+            w[key[len('module.')+len(name)+1:]] = weight[key]
+    return w
+
 def train_par():
     print('PAR')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     fr_dico = pickle.load(open('data/dico/fr', 'rb'))
     model = MimicEncoderModel(vocab_size=200000, par_vocab_size=20000).float().to(DEVICE)
     if not os.path.exists('model/par'):
-        lstm_weight, embed_weight = torch.load('model/en-nli')...
+        weight = torch.load('model/en-nli')
+        lstm_weight, embed_weight = extract_weight('lstm'), extract_weight('embed')
         model.embed.load_state_dict(embed_weight)
         model.lstm.load_state_dict(lstm_weight)
         model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr')))
