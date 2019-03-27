@@ -256,13 +256,13 @@ def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
         torch.save(model.state_dict(), model_path)
         print('model save to %s' % model_path)
 
-generator_params = {'batch_size': 128, 'shuffle': True, 'num_workers': 6}
+generator_params = {'batch_size': 64, 'shuffle': True, 'num_workers': 12}
 
 def train_nli():
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     model = ClassifierModel(vocab_size=200000).float().to(DEVICE)
     if not os.path.exists('model/en-nli'):
-        model.embed.from_pretrained(torch.as_tensor(np.load('data/weight/en')))
+        model.embed.from_pretrained(torch.as_tensor(np.load('data/weight/en.npy')))
         print('load pretrained weight')
     if DEVICE != 'cpu':
         model = torch.nn.DataParallel(model, device_ids=[0,1,2])
@@ -275,7 +275,7 @@ def train_nli():
     train_generator = NLIDataset(train_data).get_generator(generator_params)
     valid_generator = NLIDataset(valid_data).get_generator(generator_params)
     test_generator = NLIDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters(), lr=2e-4)
+    optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
     for epoch in range(MAX_EPOCH):
         go_xnli(True, model, optimizer, criterion, train_generator, 'model/en-nli')
