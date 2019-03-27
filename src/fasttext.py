@@ -259,6 +259,7 @@ def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
 generator_params = {'batch_size': 128, 'shuffle': True, 'num_workers': 6}
 
 def train_nli():
+    print('NLI')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     model = ClassifierModel(vocab_size=200000).float().to(DEVICE)
     if not os.path.exists('model/en-nli'):
@@ -281,6 +282,55 @@ def train_nli():
         go_xnli(True, model, optimizer, criterion, train_generator, 'model/en-nli')
         go_xnli(False, model, optimizer, criterion, valid_generator, None)
         go_xnli(False, model, optimizer, criterion, test_generator, None)
+
+def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000):
+    model.train(train)
+    optimizer.zero_grad()
+    pbar = tqdm(enumerate(generator), ncols=0)
+    total_loss = 0
+    for idx, (batch_X, batch_Y, batch_labels) in pbar:
+        batch_X, batch_Y, batch_Xc, batch_Yc = batch_X.to(DEVICE), batch_Y.to(DEVICE), batch_Xc.to(DEVICE), batch_Yc.to(DEVICE)
+        optimizer.zero_grad()
+        loss = model(batch_X, batch_Y, batch_Xc, batch_Yc)
+        if train:
+            loss.backward()
+            optimizer.step()
+        total_loss += loss.item()
+        if idx % 10 == 9:
+            pbar.set_description('[%s] loss: %.4f' % ('Train' if train else 'EVAL', total_loss / idx))
+        if idx >= epoch_size:
+            break
+    if train and model_path is not None:
+        torch.save(model.state_dict(), model_path)
+        print('model save to %s' % model_path)
+
+def train_par():
+    print('PAR')
+    en_dico = pickle.load(open('data/dico/en', 'rb'))
+    fr_dico = pickle.load(open('data/dico/fr', 'rb'))
+    model = MimicEncoderModel(vocab_size=200000, par_vocab_size=20000).float().to(DEVICE)
+    if not os.path.exists('model/par'):
+        lstm_weight, embed_weight = torch.load('model/en-nli')...
+        model.embed.load_state_dict(embed_weight)
+        model.lstm.load_state_dict(lstm_weight)
+        model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr')))
+        print('load pretrained weight')        
+    if DEVICE != 'cpu':
+        model = torch.nn.DataParallel(model, device_ids=[0,1,2])
+    if os.path.exists('model/par'):
+        model.load_state_dict(torch.load('model/par'))
+        print('continuous training model')
+    train_data = load_parallel_dataset('data/para/en-fr.en.train', en_dico, 'data/para/en-fr.fr.train', fr_dico)
+    valid_data = load_parallel_dataset('data/para/en-fr.en.valid', en_dico, 'data/para/en-fr.fr.valid', fr_dico)
+    test_data = load_parallel_dataset('data/para/en-fr.en.test', en_dico, 'data/para/en-fr.fr.test', fr_dico)
+    train_generator = NLIDataset(train_data).get_generator(generator_params)
+    valid_generator = NLIDataset(valid_data).get_generator(generator_params)
+    test_generator = NLIDataset(test_data).get_generator(generator_params)
+    optimizer = optim.Adam(model.parameters(), lr=2e-4)
+    for epoch in range(MAX_EPOCH):
+        go_par(True, model, optimizer, train_generator, 'model/par')
+        go_par(False, model, optimizer, valid_generator, None)
+        go_par(False, model, optimizer, test_generator, None)
 
 if __name__ == '__main__':
     train_nli()
