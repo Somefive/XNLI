@@ -112,11 +112,11 @@ def preprocess(size=200000):
     weights, dico, unks = get_vocab_and_weight('data/para/en-fr.en.all', 'data/embed/en')
     w, _dico = resolve_dico_and_weights(weights, dico, size)
     np.save('data/weight/en', w)
-    np.save('data/dico/en', _dico)
+    pickle.dump(_dico, open('data/dico/en', 'wb'))
     weights, dico, unks = get_vocab_and_weight('data/para/en-fr.fr.all', 'data/embed/fr')
     w, _dico = resolve_dico_and_weights(weights, dico, size)
     np.save('data/weight/fr', w)
-    np.save('data/dico/fr', _dico)    
+    pickle.dump(_dico, open('data/dico/fr', 'wb'))
 
 class ClassifierModel(nn.Module):
 
