@@ -297,7 +297,7 @@ def eval_nli():
     fr_dico = pickle.load(open('data/dico/fr', 'rb'))
     model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
     nli_weight = torch.load('model/en-nli')
-    par_weight = torch.load('model/en-par')
+    par_weight = torch.load('model/par')
     lstm_weight, embed_weight = extract_weight(par_weight, 'lstm_par'), extract_weight(par_weight, 'embed_par')
     model.embed.load_state_dict(embed_weight)
     model.lstm.load_state_dict(lstm_weight)
@@ -344,6 +344,10 @@ def extract_weight(weight, name):
             w[key[len('module.')+len(name)+1:]] = weight[key]
     return w
 
+def freeze_layer(layer):
+    for param in layer.parameters():
+        param.requires_grad = False
+
 def train_par():
     print('PAR')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
@@ -354,6 +358,8 @@ def train_par():
         lstm_weight, embed_weight = extract_weight(weight, 'lstm'), extract_weight(weight, 'embed')
         model.embed.load_state_dict(embed_weight)
         model.lstm.load_state_dict(lstm_weight)
+        freeze_layer(model.embed)
+        freeze_layer(model.lstm)
         model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr.npy')))
         print('load pretrained weight')        
     if DEVICE != 'cpu':
