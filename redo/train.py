@@ -9,16 +9,18 @@ import torch
 from torch.autograd import Variable
 import torch.nn as nn
 
-from data import get_xnli, get_batch, build_embed
+from data import get_xnli, get_batch, build_vocab
 #from data import get_xnli, get_batch, build_vocab
 from mutils import get_optimizer
-from model import BLSTM_Net
+from model import BiLSTM, ClassifierNet
+
+from collections import defaultdict
 
 parser = argparse.ArgumentParser(description='Encoder Training?')
 # paths
 lg = "en"
 parser.add_argument("--language", type=str, default="en", help="2-letter lang abbv")
-parser.add_argument("--xnlipath", type=str, default='./dataset/xnli/XNLI-1.0', help="XNLI data path ")
+parser.add_argument("--xnlipath", type=str, default='./data/xnli/XNLI-1.0', help="XNLI data path ")
 parser.add_argument("--outputdir", type=str, default='./output/', help="Output directory")
 parser.add_argument("--outputmodelname", type=str, default='model.pickle')
 parser.add_argument("--word_emb_path", type=str, default="data/emb/", help="word embedding file path")
@@ -36,6 +38,7 @@ parser.add_argument("--minlr", type=float, default=1e-5, help="minimum lr")
 parser.add_argument("--max_norm", type=float, default=5., help="max norm (grad clipping)")
 
 # model
+parser.add_argument("--encoder_type", type=str, default='BiLSTM', help="see list of encoders")
 parser.add_argument("--encoder", type=str, default='BiLSTM', help="only BiLSTM")
 parser.add_argument("--enc_lstm_dim", type=int, default=2048, help="encoder nhid dimension")
 parser.add_argument("--n_enc_layers", type=int, default=2, help="encoder num layers")
@@ -64,11 +67,8 @@ print(params)
 DATA
 """
 lg = "en"
-
 train, valid, test = get_xnli(lg, params.xnlipath)
-
-# use lg.train, lg.valid and lg.test to build the word2vec dict
-word_embed = build_embed([train, valid, test], params.word_embed_path, lg)
+word_embed = build_vocab([train, valid, test], params.word_emb_path, lg)
 
 # embed the 3 files with the dict above
 # for f in [train, valid, test]:
@@ -98,19 +98,19 @@ config_model = {
     'n_classes'      :  params.n_classes      ,
     'pool_type'      :  params.pool_type      ,
     'nonlinear_fc'   :  params.nonlinear_fc   ,
-    'encoder'        :  params.encoder_type   ,
+    'encoder_type'   :  params.encoder_type   ,
     'use_cuda'       :  True                  ,
 
 }
 
 # model
-encoders = ["BLSTMEncoder"]
+#encoders = ["BiLSTM"]
 #encoder_types = ['InferSent', 'BLSTMprojEncoder', 'BGRUlastEncoder',
 #                 'InnerAttentionMILAEncoder', 'InnerAttentionYANGEncoder',
 #                 'InnerAttentionNAACLEncoder', 'ConvNetEncoder', 'LSTMEncoder']
-assert params.encoder in encoders, "encoder_type must be in " + str(encoders)
-model = BLSTM_Net(config_model)
-print(BLSTM_Net)
+#assert params.encoder in encoders, "encoder_type must be in " + str(encoders)
+classifier = ClassifierNet(config_model)
+print(classifier)
 
 # loss
 weight = torch.FloatTensor(params.n_classes).fill_(1)
@@ -119,10 +119,10 @@ loss_fn.size_average = False
 
 # optimizer
 optim_fn, optim_params = get_optimizer(params.optimizer)
-optimizer = optim_fn(BLSTM_Net.parameters(), **optim_params)
+optimizer = optim_fn(classifier.parameters(), **optim_params)
 
 # cuda by default
-BLSTM_Net.cuda()
+classifier.cuda()
 loss_fn.cuda()
 
 
@@ -137,7 +137,7 @@ lr = optim_params['lr'] if 'sgd' in params.optimizer else None
 
 def trainepoch(epoch):
     print('\nTRAINING : Epoch ' + str(epoch))
-    BLSTM_Net.train()
+    classifier.train()
     all_costs = []
     logs = []
     words_count = 0
@@ -145,11 +145,16 @@ def trainepoch(epoch):
     last_time = time.time()
     correct = 0.
     # shuffle the data
-    permutation = np.random.permutation(len(train['s1']))
+    permutation = np.random.permutation(len(train['pairs']))
 
-    s1 = train['s1'][permutation]
-    s2 = train['s2'][permutation]
-    target = train['label'][permutation]
+    pairs = train['pairs']
+    s1 = [p[0] for p in pairs]
+    s2 = [p[1] for p in pairs]
+    #s1 = [" ".join(p[0]) for p in pairs]
+    #s2 = [" ".join(p[1]) for p in pairs]
+    #s1 = train['pairs'][permutation][0]
+    #s2 = train['pairs'][permutation]
+    target = train['labels']
 
 
     optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * params.decay if epoch>1\
@@ -162,12 +167,13 @@ def trainepoch(epoch):
                                      word_embed, params.word_emb_dim)
         s2_batch, s2_len = get_batch(s2[stidx:stidx + params.batch_size],
                                      word_embed, params.word_emb_dim)
-        s1_batch, s2_batch = Variable(s1_batch.cuda()), Variable(s2_batch.cuda())
-        tgt_batch = Variable(torch.LongTensor(target[stidx:stidx + params.batch_size])).cuda()
+        s1_batch, s2_batch = Variable(s1_batch), Variable(s2_batch)
+        tgt_batch = Variable(torch.LongTensor(target[stidx:stidx + params.batch_size]))
         k = s1_batch.size(1)  # actual batch size
 
         # model forward
-        output = BLSTM_Net((s1_batch, s1_len), (s2_batch, s2_len))
+        #print (s1_batch, s1_len)
+        output = classifier((s1_batch, s1_len), (s2_batch, s2_len))
 
         pred = output.data.max(1)[1]
         correct += pred.long().eq(tgt_batch.data.long()).cpu().sum()
@@ -186,7 +192,7 @@ def trainepoch(epoch):
         shrink_factor = 1
         total_norm = 0
 
-        for p in BLSTM_Net.parameters():
+        for p in classifier.parameters():
             if p.requires_grad:
                 p.grad.data.div_(k)  # divide by the actual batch size
                 total_norm += p.grad.data.norm() ** 2
@@ -218,7 +224,7 @@ def trainepoch(epoch):
 
 
 def evaluate(epoch, eval_type='valid', final_eval=False):
-    BLSTM_Net.eval()
+    classifier.eval()
     correct = 0.
     global val_acc_best, lr, stop_training, adam_stop
 
@@ -231,13 +237,13 @@ def evaluate(epoch, eval_type='valid', final_eval=False):
 
     for i in range(0, len(s1), params.batch_size):
         # prepare batch
-        s1_batch, s1_len = get_batch(s1[i:i + params.batch_size], word_vec, params.word_emb_dim)
-        s2_batch, s2_len = get_batch(s2[i:i + params.batch_size], word_vec, params.word_emb_dim)
-        s1_batch, s2_batch = Variable(s1_batch.cuda()), Variable(s2_batch.cuda())
-        tgt_batch = Variable(torch.LongTensor(target[i:i + params.batch_size])).cuda()
+        s1_batch, s1_len = get_batch(s1[i:i + params.batch_size], word_embed, params.word_emb_dim)
+        s2_batch, s2_len = get_batch(s2[i:i + params.batch_size], word_embed, params.word_emb_dim)
+        s1_batch, s2_batch = Variable(s1_batch), Variable(s2_batch)
+        tgt_batch = Variable(torch.LongTensor(target[i:i + params.batch_size]))
 
         # model forward
-        output = BLSTM_Net((s1_batch, s1_len), (s2_batch, s2_len))
+        output = classifier((s1_batch, s1_len), (s2_batch, s2_len))
 
         pred = output.data.max(1)[1]
         correct += pred.long().eq(tgt_batch.data.long()).cpu().sum()
@@ -255,7 +261,7 @@ def evaluate(epoch, eval_type='valid', final_eval=False):
             print('saving model at epoch {0}'.format(epoch))
             if not os.path.exists(params.outputdir):
                 os.makedirs(params.outputdir)
-            torch.save(BLSTM_Net.state_dict(), os.path.join(params.outputdir,
+            torch.save(classifier.state_dict(), os.path.join(params.outputdir,
                        params.outputmodelname))
             val_acc_best = eval_acc
         else:
@@ -284,11 +290,16 @@ while not stop_training and epoch <= params.n_epochs:
     epoch += 1
 
 # Run best model on test set.
-BLSTM_Net.load_state_dict(torch.load(os.path.join(params.outputdir, params.outputmodelname)))
+classifier.load_state_dict(torch.load(os.path.join(params.outputdir, params.outputmodelname)))
 
 print('\nTEST : Epoch {0}'.format(epoch))
 evaluate(1e6, 'valid', True)
 evaluate(0, 'test', True)
 
 # Save encoder instead of full model
-torch.save(BLSTM_Net.encoder.state_dict(), os.path.join(params.outputdir, params.outputmodelname + '.encoder.pkl'))
+print ("******************** save model!**********************")
+torch.save(classifier.encoder.state_dict(), os.path.join(params.outputdir, params.outputmodelname + '.encoder.pkl'))
+
+
+
+
