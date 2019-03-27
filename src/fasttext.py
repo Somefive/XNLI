@@ -292,6 +292,27 @@ def train_nli():
         go_xnli(False, model, optimizer, criterion, valid_generator, None)
         go_xnli(False, model, optimizer, criterion, test_generator, None)
 
+def eval_nli():
+    print('EVAL NLI')
+    fr_dico = pickle.load(open('data/dico/fr', 'rb'))
+    model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
+    nli_weight = torch.load('model/en-nli')
+    par_weight = torch.load('model/en-par')
+    lstm_weight, embed_weight = extract_weight(par_weight, 'lstm_par'), extract_weight(par_weight, 'embed_par')
+    model.embed.load_state_dict(embed_weight)
+    model.lstm.load_state_dict(lstm_weight)
+    fc1_weight, fc2_weight = extract_weight(nli_weight, 'fc1'), extract_weight(nli_weight, 'fc2')
+    model.fc1.load_state_dict(fc1_weight)
+    model.fc2.load_state_dict(fc2_weight)
+    valid_data = load_dataset('data/xnli/fr.valid', fr_dico)
+    test_data = load_dataset('data/xnli/fr.test', fr_dico)
+    valid_generator = NLIDataset(valid_data).get_generator(generator_params)
+    test_generator = NLIDataset(test_data).get_generator(generator_params)
+    optimizer = optim.Adam(model.parameters())
+    criterion = nn.CrossEntropyLoss()
+    go_xnli(False, model, optimizer, criterion, valid_generator, None)
+    go_xnli(False, model, optimizer, criterion, test_generator, None)
+
 def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000):
     model.train(train)
     optimizer.zero_grad()
@@ -356,3 +377,4 @@ def train_par():
 if __name__ == '__main__':
     #train_nli()
     train_par()
+    #eval_nli()
