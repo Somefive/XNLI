@@ -58,8 +58,8 @@ def load_parallel_dataset(filename1, dico1, filename2, dico2):
         line1, line2 = convert(line1, dico1), convert(line2, dico2)
         unk_rate += line1.count(UNK_IDX) / len(line1) + line2.count(UNK_IDX) / len(line2)
         data.append((line1[:MAX_SEQ_LEN], line2[:MAX_SEQ_LEN]))
-        #if len(data) >= 10000:
-        #    break
+        if len(data) >= 100000:
+            break
     print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
 
@@ -168,8 +168,8 @@ class MimicEncoderModel(nn.Module):
                              dropout=0.1,
                              bidirectional=True)
         self.lbda = lbda
-        self.embed.require_grad = False
-        self.lstm.require_grad = False
+        freeze_layer(self.embed)
+        freeze_layer(self.lstm)
         self.l2 = nn.MSELoss()
 
     def forward(self, x, y, xc, yc):
@@ -264,7 +264,7 @@ def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
         torch.save(model.state_dict(), model_path)
         print('model save to %s' % model_path)
 
-generator_params = {'batch_size': 64, 'shuffle': True, 'num_workers': 12}
+generator_params = {'batch_size': 128, 'shuffle': True, 'num_workers': 12}
 
 def train_nli():
     print('NLI')
@@ -358,8 +358,6 @@ def train_par():
         lstm_weight, embed_weight = extract_weight(weight, 'lstm'), extract_weight(weight, 'embed')
         model.embed.load_state_dict(embed_weight)
         model.lstm.load_state_dict(lstm_weight)
-        freeze_layer(model.embed)
-        freeze_layer(model.lstm)
         model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr.npy')))
         print('load pretrained weight')        
     if DEVICE != 'cpu':
@@ -373,7 +371,7 @@ def train_par():
     train_generator = ParallelDataset(train_data).get_generator(generator_params)
     valid_generator = ParallelDataset(valid_data).get_generator(generator_params)
     test_generator = ParallelDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
     for epoch in range(MAX_EPOCH):
         print('Epoch: %d' % epoch)
         go_par(True, model, optimizer, train_generator, 'model/par')
