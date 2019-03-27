@@ -138,6 +138,7 @@ class ClassifierModel(nn.Module):
         self.dropout = nn.Dropout(p=0.1)
         self.fc2 = nn.Linear(in_features=fc_hidden_dim, out_features=3, bias=True)
         self.relu = nn.ReLU()
+        freeze_layer(self.embed)
 
     def forward(self, x, y):
         x, _ = self.lstm(self.embed(x)) # batch_size, seq_len, 2*lstm_hidden_size
@@ -170,18 +171,19 @@ class MimicEncoderModel(nn.Module):
         self.lbda = lbda
         freeze_layer(self.embed)
         freeze_layer(self.lstm)
+        freeze_layer(self.embed_par)
         self.l2 = nn.MSELoss()
 
     def forward(self, x, y, xc, yc):
         x, _ = self.lstm(self.embed(x)) # batch_size, seq_len, 2*lstm_hidden_size
         y, _ = self.lstm_par(self.embed_par(y))
-        xc, _ = self.lstm(self.embed(xc))
-        yc, _ = self.lstm_par(self.embed_par(yc))
+        #xc, _ = self.lstm(self.embed(xc))
+        #yc, _ = self.lstm_par(self.embed_par(yc))
         x, _ = torch.max(x, dim=1)
         y, _ = torch.max(y, dim=1)
-        xc, _ = torch.max(xc, dim=1)
-        yc, _ = torch.max(yc, dim=1)
-        return self.l2(x, y) - self.lbda * (self.l2(xc, y) + self.l2(x, yc))
+        #xc, _ = torch.max(xc, dim=1)
+        #yc, _ = torch.max(yc, dim=1)
+        return self.l2(x, y) #- self.lbda * (self.l2(xc, y) + self.l2(x, yc))
 
 
 class NLIDataset(torch.utils.data.Dataset):
@@ -264,14 +266,14 @@ def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
         torch.save(model.state_dict(), model_path)
         print('model save to %s' % model_path)
 
-generator_params = {'batch_size': 128, 'shuffle': True, 'num_workers': 12}
+generator_params = {'batch_size': 256, 'shuffle': True, 'num_workers': 12}
 
 def train_nli():
     print('NLI')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
     if not os.path.exists('model/en-nli'):
-        model.embed.from_pretrained(torch.as_tensor(np.load('data/weight/en.npy')))
+        model.embed.load_state_dict({'weight': torch.as_tensor(np.load('data/weight/en.npy'))})
         print('load pretrained weight')
     if DEVICE != 'cpu':
         model = torch.nn.DataParallel(model, device_ids=[0])
@@ -379,6 +381,6 @@ def train_par():
         go_par(False, model, optimizer, test_generator, None)
 
 if __name__ == '__main__':
-    #train_nli()
-    train_par()
+    train_nli()
+    #train_par()
     #eval_nli()
