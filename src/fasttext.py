@@ -360,7 +360,7 @@ def train_par():
         lstm_weight, embed_weight = extract_weight(weight, 'lstm'), extract_weight(weight, 'embed')
         model.embed.load_state_dict(embed_weight)
         model.lstm.load_state_dict(lstm_weight)
-        model.embed_par.from_pretrained(torch.as_tensor(np.load('data/weight/fr.npy')))
+        model.embed_par.load_state_dict({'weight': torch.as_tensor(np.load('data/weight/fr.npy'))})
         print('load pretrained weight')        
     if DEVICE != 'cpu':
         model = torch.nn.DataParallel(model, device_ids=[0])
