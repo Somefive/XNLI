@@ -10,6 +10,27 @@ import torch.optim as optim
 from torch.nn.utils.rnn import pad_sequence
 import pickle
 import string
+import argparse
+
+def parse_args():
+    def str2ints(x):
+        return [int(i) for i in x.split(',')]
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--batch_size', default=64, type=int, help='batch size')
+    parser.add_argument('--num_workers', default=12, type=int, help='batch size')
+    parser.add_argument('--mode', choices=['nli','par','eval'], default='eval', help='running mode: [nli, par, eval]')
+    parser.add_argument('--vocab_size', default=1e5, type=int, help='batch size')
+    parser.add_argument('--device', default='cuda:0', type=str, help='device')
+    parser.add_argument('--gpus', default=[0], type=str2ints, help="gpu ids")
+    parser.add_argument('--dataset_size', default=1e4, type=int, help='dataset size')
+    parser.add_argument('--max_seq_len', default=256, type=int, help='max sequence length')
+    parser.add_argument('--max_epoch', default=100, type=int, help='max epoch')
+    parser.add_argument('--args.max_epoch', default=2000, type=int, help='epoch size')
+    args = parser.parse_args()
+    return args
+
+args = parse_args()
+generator_params = {'batch_size': args.batch_size, 'shuffle': True, 'num_workers': args.num_workers}
 
 def load_dicos(filenames):
     return [pickle.load(open(filename, 'rb')) for filename in filenames]
@@ -49,16 +70,14 @@ def load_dataset(filename, dico):
     print('load %d data from %s. <unk> rate is %.3f.' % (len(data), filename, unk_rate / len(data) / 2))
     return data
 
-MAX_SEQ_LEN=256
-
 def load_parallel_dataset(filename1, dico1, filename2, dico2):
     data = []
     unk_rate = 0
     for line1, line2 in tqdm(zip(open(filename1), open(filename2))):
         line1, line2 = convert(line1, dico1), convert(line2, dico2)
         unk_rate += line1.count(UNK_IDX) / len(line1) + line2.count(UNK_IDX) / len(line2)
-        data.append((line1[:MAX_SEQ_LEN], line2[:MAX_SEQ_LEN]))
-        if len(data) >= 10000:
+        data.append((line1[:args.max_seq_len], line2[:args.max_seq_len]))
+        if len(data) >= args.dataset_size:
             break
     print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
@@ -121,6 +140,19 @@ def preprocess(size=200000):
     w, _dico = resolve_dico_and_weights(weights, dico, size)
     np.save('data/weight/fr', w)
     pickle.dump(_dico, open('data/dico/fr', 'wb'))
+
+def extract_weight(weight, name):
+    w = {}
+    for key in weight:
+        if key.startswith(name+'.'):
+            w[key[len(name)+1:]] = weight[key]
+        elif key.startswith('module.'+name+'.'):
+            w[key[len('module.')+len(name)+1:]] = weight[key]
+    return w
+
+def freeze_layer(layer):
+    for param in layer.parameters():
+        param.requires_grad = False
 
 class ClassifierModel(nn.Module):
 
@@ -246,41 +278,35 @@ def collate_fn_par(data):
     ycs = pad_sequence([torch.LongTensor(y) for y in ycs], batch_first=True, padding_value=PAD_IDX)
     return xs, ys, xcs, ycs
 
-DEVICE='cuda:2'
-MAX_EPOCH=100
-
-def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
+def go_nli(train, model, optimizer, criterion, generator, model_path=None):
     model.train(train)
-    optimizer.zero_grad()
     pbar = tqdm(enumerate(generator), ncols=0)
-    total_loss, total_acc = 0, 0
+    total_loss, total_acc, cnt = 0, 0, 0
     for idx, (batch_X, batch_Y, batch_labels) in pbar:
-        batch_X, batch_Y, batch_labels = batch_X.to(DEVICE), batch_Y.to(DEVICE), batch_labels.to(DEVICE)
+        batch_X, batch_Y, batch_labels = batch_X.to(args.device), batch_Y.to(args.device), batch_labels.to(args.device)
         optimizer.zero_grad()
         pred_labels = model(batch_X, batch_Y)
         loss = criterion(pred_labels, batch_labels)
         if train:
             loss.backward()
             optimizer.step()
-        total_loss += loss.item()
-        total_acc += (pred_labels.argmax(dim=1) == batch_labels).float().mean().item()
+        total_loss += loss.item() * batch_labels.size(0)
+        total_acc += (pred_labels.argmax(dim=1) == batch_labels).float().sum().item()
+        cnt += batch_labels.size(0)
         if idx % 10 == 9:
-            pbar.set_description('[%s] loss: %.4f acc: %.4f' % ('Train' if train else 'EVAL', total_loss / idx, total_acc / idx))
+            pbar.set_description('[%s] loss: %.4f acc: %.4f' % ('Train' if train else 'EVAL', total_loss / cnt, total_acc / cnt))
     if train and model_path is not None:
         torch.save(model.state_dict(), model_path)
         print('model save to %s' % model_path)
 
-generator_params = {'batch_size': 256, 'shuffle': True, 'num_workers': 12}
-
 def train_nli():
-    print('NLI')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
-    model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
+    model = ClassifierModel(vocab_size=args.vocab_size).float().to(args.device)
     if not os.path.exists('model/en-nli'):
         model.embed.load_state_dict({'weight': torch.as_tensor(np.load('data/weight/en.npy'))})
         print('load pretrained weight')
-    if DEVICE != 'cpu':
-        model = torch.nn.DataParallel(model, device_ids=[0])
+    if args.device != 'cpu':
+        model = torch.nn.DataParallel(model, device_ids=args.gpus)
     if os.path.exists('model/en-nli'):
         model.load_state_dict(torch.load('model/en-nli'))
         print('continuous training model')
@@ -292,16 +318,16 @@ def train_nli():
     test_generator = NLIDataset(test_data).get_generator(generator_params)
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
-    for epoch in range(MAX_EPOCH):
+    for epoch in range(args.max_epoch):
         print('Epoch: %d' % epoch)
-        go_xnli(True, model, optimizer, criterion, train_generator, 'model/en-nli')
-        go_xnli(False, model, optimizer, criterion, valid_generator, None)
-        go_xnli(False, model, optimizer, criterion, test_generator, None)
+        go_nli(True, model, optimizer, criterion, train_generator, 'model/en-nli')
+        go_nli(False, model, optimizer, criterion, valid_generator, None)
+        go_nli(False, model, optimizer, criterion, test_generator, None)
 
 def eval_nli():
     print('EVAL NLI')
     fr_dico = pickle.load(open('data/dico/en', 'rb'))
-    model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
+    model = ClassifierModel(vocab_size=100000).float().to(args.device)
     nli_weight = torch.load('model/en-nli')
 #    par_weight = torch.load('model/par')
     lstm_weight, embed_weight = extract_weight(nli_weight, 'lstm'), extract_weight(nli_weight, 'embed')
@@ -319,13 +345,13 @@ def eval_nli():
     go_xnli(False, model, optimizer, criterion, valid_generator, None)
     go_xnli(False, model, optimizer, criterion, test_generator, None)
 
-def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000):
+def go_par(train, model, optimizer, generator, model_path=None):
     model.train(train)
     optimizer.zero_grad()
     pbar = tqdm(enumerate(generator), ncols=0)
     total_loss = 0
     for idx, (batch_X, batch_Y, batch_Xc, batch_Yc) in pbar:
-        batch_X, batch_Y, batch_Xc, batch_Yc = batch_X.to(DEVICE), batch_Y.to(DEVICE), batch_Xc.to(DEVICE), batch_Yc.to(DEVICE)
+        batch_X, batch_Y, batch_Xc, batch_Yc = batch_X.to(args.device), batch_Y.to(args.device), batch_Xc.to(args.device), batch_Yc.to(args.device)
         optimizer.zero_grad()
         loss = model(batch_X, batch_Y, batch_Xc, batch_Yc).sum()
         #if train:
@@ -334,31 +360,17 @@ def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000)
         total_loss += loss.item()
         if idx % 10 == 9:
             pbar.set_description('[%s] loss: %.4e' % ('Train' if train else 'EVAL', total_loss / idx))
-        if idx >= epoch_size:
+        if idx >= args.epoch_size:
             pbar.close()
             break
     if train and model_path is not None:
         torch.save(model.state_dict(), model_path)
         print('model save to %s' % model_path)
 
-def extract_weight(weight, name):
-    w = {}
-    for key in weight:
-        if key.startswith(name+'.'):
-            w[key[len(name)+1:]] = weight[key]
-        elif key.startswith('module.'+name+'.'):
-            w[key[len('module.')+len(name)+1:]] = weight[key]
-    return w
-
-def freeze_layer(layer):
-    for param in layer.parameters():
-        param.requires_grad = False
-
 def train_par():
-    print('PAR')
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     fr_dico = pickle.load(open('data/dico/fr', 'rb'))
-    model = MimicEncoderModel(vocab_size=100000, par_vocab_size=100000).float().to(DEVICE)
+    model = MimicEncoderModel(vocab_size=args.vocab_size, par_vocab_size=args.vocab_size).float().to(args.device)
     if not os.path.exists('model/par'):
         weight = torch.load('model/en-nli')
         lstm_weight, embed_weight = extract_weight(weight, 'lstm'), extract_weight(weight, 'embed')
@@ -366,8 +378,8 @@ def train_par():
         model.lstm.load_state_dict(lstm_weight)
         model.embed_par.load_state_dict({'weight': torch.as_tensor(np.load('data/weight/fr.npy'))})
         print('load pretrained weight')        
-    if DEVICE != 'cpu':
-        model = torch.nn.DataParallel(model, device_ids=[2])
+    if args.device != 'cpu':
+        model = torch.nn.DataParallel(model, device_ids=args.gpus)
     if os.path.exists('model/par'):
         model.load_state_dict(torch.load('model/par'))
         print('continuous training model')
@@ -378,13 +390,17 @@ def train_par():
     valid_generator = ParallelDataset(valid_data).get_generator(generator_params)
     test_generator = ParallelDataset(test_data).get_generator(generator_params)
     optimizer = optim.Adam(model.parameters())
-    for epoch in range(MAX_EPOCH):
+    for epoch in range(args.max_epoch):
         print('Epoch: %d' % epoch)
         go_par(True, model, optimizer, train_generator, 'model/par')
         go_par(False, model, optimizer, valid_generator, None)
         go_par(False, model, optimizer, test_generator, None)
 
 if __name__ == '__main__':
-    #train_nli()
-    #train_par()
-    eval_nli()
+    print('model: %s' % args.mode)
+    if args.mode == 'nli':
+        train_nli()
+    elif args.mode == 'par':
+        train_par()
+    elif args.mode == 'eval':
+        eval_nli()
