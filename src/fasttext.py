@@ -76,11 +76,13 @@ def load_dataset(filename, dico):
 def load_parallel_dataset(filename1, dico1, filename2, dico2):
     data = []
     unk_rate = 0
-    for line1, line2 in tqdm(zip(open(filename1), open(filename2))):
+    pbar = tqdm(zip(open(filename1), open(filename2))) 
+    for line1, line2 in pbar:
         line1, line2 = convert(line1, dico1), convert(line2, dico2)
         unk_rate += line1.count(UNK_IDX) / len(line1) + line2.count(UNK_IDX) / len(line2)
         data.append((line1[:args.max_seq_len], line2[:args.max_seq_len]))
         if len(data) >= args.dataset_size:
+            pbar.close()
             break
     print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
@@ -346,7 +348,7 @@ def eval_nli():
     go_nli(False, model, valid_generator)
     go_nli(False, model, test_generator)
 
-def go_par(train, model, generator):
+def go_par(train, model, generator, epoch=0):
     model.train(train)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     pbar = tqdm(enumerate(generator), ncols=0)
@@ -366,7 +368,7 @@ def go_par(train, model, generator):
             pbar.close()
             break
     if train:
-        torch.save(model.state_dict(), args.par_model)
+        torch.save(model.state_dict(), args.par_model+str(epoch))
         print('model save to %s' % args.par_model)
 
 def train_par():
@@ -394,9 +396,9 @@ def train_par():
     
     for epoch in range(args.max_epoch):
         print('Epoch: %d' % epoch)
-        go_par(True, model, train_generator)
-        go_par(False, model, valid_generator)
-        go_par(False, model, test_generator)
+        go_par(True, model, train_generator, epoch)
+        go_par(False, model, valid_generator, epoch)
+        go_par(False, model, test_generator, epoch)
 
 if __name__ == '__main__':
     print('model: %s' % args.mode)
