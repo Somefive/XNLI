@@ -329,8 +329,8 @@ def train_nli():
 def eval_nli():
     print('EVAL NLI')
     fr_dico = pickle.load(open('data/dico/en', 'rb'))
-    model = ClassifierModel(vocab_size=100000).float().to(args.device)
-    nli_weight = torch.load('model/en-nli')
+    model = ClassifierModel(vocab_size=args.vocab_size).float().to(args.device)
+    nli_weight = torch.load(args.nli_model)
 #    par_weight = torch.load('model/par')
     lstm_weight, embed_weight = extract_weight(nli_weight, 'lstm'), extract_weight(nli_weight, 'embed')
     model.embed.load_state_dict(embed_weight)
@@ -342,10 +342,8 @@ def eval_nli():
     test_data = load_dataset('data/xnli/en.test', fr_dico)
     valid_generator = NLIDataset(valid_data).get_generator(generator_params)
     test_generator = NLIDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    criterion = nn.CrossEntropyLoss()
-    go_nli(False, model, optimizer, criterion, valid_generator, None)
-    go_nli(False, model, optimizer, criterion, test_generator, None)
+    go_nli(False, model, valid_generator)
+    go_nli(False, model, test_generator)
 
 def go_par(train, model, optimizer, generator, model_path=None):
     model.train(train)
