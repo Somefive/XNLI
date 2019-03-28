@@ -312,7 +312,7 @@ def train_nli():
     if args.device != 'cpu':
         model = torch.nn.DataParallel(model, device_ids=args.gpus)
     if os.path.exists(args.nli_model):
-        model.load_state_dict(torch.load(args.nli_model))
+        model.load_state_dict(torch.load(args.nli_model, map_location=args.device))
         print('continuous training model')
     train_data = load_dataset('data/xnli/en.train', en_dico)
     valid_data = load_dataset('data/xnli/en.valid', en_dico)
@@ -330,7 +330,7 @@ def eval_nli():
     print('EVAL NLI')
     fr_dico = pickle.load(open('data/dico/en', 'rb'))
     model = ClassifierModel(vocab_size=args.vocab_size).float().to(args.device)
-    nli_weight = torch.load(args.nli_model)
+    nli_weight = torch.load(args.nli_model, map_location=args.device)
 #    par_weight = torch.load('model/par')
     lstm_weight, embed_weight = extract_weight(nli_weight, 'lstm'), extract_weight(nli_weight, 'embed')
     model.embed.load_state_dict(embed_weight)
