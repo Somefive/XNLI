@@ -58,7 +58,7 @@ def load_parallel_dataset(filename1, dico1, filename2, dico2):
         line1, line2 = convert(line1, dico1), convert(line2, dico2)
         unk_rate += line1.count(UNK_IDX) / len(line1) + line2.count(UNK_IDX) / len(line2)
         data.append((line1[:MAX_SEQ_LEN], line2[:MAX_SEQ_LEN]))
-        if len(data) >= 100000:
+        if len(data) >= 10000:
             break
     print('load %d data from %s,%s. <unk> rate is %.3f.' % (len(data), filename1, filename2, unk_rate / len(data) / 2))
     return data
@@ -177,13 +177,13 @@ class MimicEncoderModel(nn.Module):
     def forward(self, x, y, xc, yc):
         x, _ = self.lstm(self.embed(x)) # batch_size, seq_len, 2*lstm_hidden_size
         y, _ = self.lstm_par(self.embed_par(y))
-        #xc, _ = self.lstm(self.embed(xc))
-        #yc, _ = self.lstm_par(self.embed_par(yc))
+        xc, _ = self.lstm(self.embed(xc))
+        yc, _ = self.lstm_par(self.embed_par(yc))
         x, _ = torch.max(x, dim=1)
         y, _ = torch.max(y, dim=1)
-        #xc, _ = torch.max(xc, dim=1)
-        #yc, _ = torch.max(yc, dim=1)
-        return self.l2(x, y) #- self.lbda * (self.l2(xc, y) + self.l2(x, yc))
+        xc, _ = torch.max(xc, dim=1)
+        yc, _ = torch.max(yc, dim=1)
+        return self.l2(x, y) - self.lbda * (self.l2(xc, y) + self.l2(x, yc))
 
 
 class NLIDataset(torch.utils.data.Dataset):
@@ -226,7 +226,11 @@ class ParallelDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         x, y = self.data[index]
-        i, j = np.random.randint(len(self.data)), np.random.randint(len(self.data))
+        i, j = index, index
+        while i == index:
+            i = np.random.randint(len(self.data))
+        while j == index:
+            j = np.random.randint(len(self.data))
         xc, yc = self.data[i][0], self.data[j][1]
         return x, y, xc, yc
     
@@ -242,7 +246,7 @@ def collate_fn_par(data):
     ycs = pad_sequence([torch.LongTensor(y) for y in ycs], batch_first=True, padding_value=PAD_IDX)
     return xs, ys, xcs, ycs
 
-DEVICE='cuda:0'
+DEVICE='cuda:2'
 MAX_EPOCH=100
 
 def go_xnli(train, model, optimizer, criterion, generator, model_path=None):
@@ -296,18 +300,18 @@ def train_nli():
 
 def eval_nli():
     print('EVAL NLI')
-    fr_dico = pickle.load(open('data/dico/fr', 'rb'))
+    fr_dico = pickle.load(open('data/dico/en', 'rb'))
     model = ClassifierModel(vocab_size=100000).float().to(DEVICE)
     nli_weight = torch.load('model/en-nli')
-    par_weight = torch.load('model/par')
-    lstm_weight, embed_weight = extract_weight(par_weight, 'lstm_par'), extract_weight(par_weight, 'embed_par')
+#    par_weight = torch.load('model/par')
+    lstm_weight, embed_weight = extract_weight(nli_weight, 'lstm'), extract_weight(nli_weight, 'embed')
     model.embed.load_state_dict(embed_weight)
     model.lstm.load_state_dict(lstm_weight)
     fc1_weight, fc2_weight = extract_weight(nli_weight, 'fc1'), extract_weight(nli_weight, 'fc2')
     model.fc1.load_state_dict(fc1_weight)
     model.fc2.load_state_dict(fc2_weight)
-    valid_data = load_dataset('data/xnli/fr.valid', fr_dico)
-    test_data = load_dataset('data/xnli/fr.test', fr_dico)
+    valid_data = load_dataset('data/xnli/en.valid', fr_dico)
+    test_data = load_dataset('data/xnli/en.test', fr_dico)
     valid_generator = NLIDataset(valid_data).get_generator(generator_params)
     test_generator = NLIDataset(test_data).get_generator(generator_params)
     optimizer = optim.Adam(model.parameters())
@@ -324,12 +328,12 @@ def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000)
         batch_X, batch_Y, batch_Xc, batch_Yc = batch_X.to(DEVICE), batch_Y.to(DEVICE), batch_Xc.to(DEVICE), batch_Yc.to(DEVICE)
         optimizer.zero_grad()
         loss = model(batch_X, batch_Y, batch_Xc, batch_Yc).sum()
-        if train:
-            loss.backward()
-            optimizer.step()
+        #if train:
+        #    loss.backward()
+        #    optimizer.step()
         total_loss += loss.item()
         if idx % 10 == 9:
-            pbar.set_description('[%s] loss: %.4f' % ('Train' if train else 'EVAL', total_loss / idx))
+            pbar.set_description('[%s] loss: %.4e' % ('Train' if train else 'EVAL', total_loss / idx))
         if idx >= epoch_size:
             pbar.close()
             break
@@ -340,9 +344,9 @@ def go_par(train, model, optimizer, generator, model_path=None, epoch_size=2000)
 def extract_weight(weight, name):
     w = {}
     for key in weight:
-        if key.startswith(name):
+        if key.startswith(name+'.'):
             w[key[len(name)+1:]] = weight[key]
-        elif key.startswith('module.'+name):
+        elif key.startswith('module.'+name+'.'):
             w[key[len('module.')+len(name)+1:]] = weight[key]
     return w
 
@@ -363,7 +367,7 @@ def train_par():
         model.embed_par.load_state_dict({'weight': torch.as_tensor(np.load('data/weight/fr.npy'))})
         print('load pretrained weight')        
     if DEVICE != 'cpu':
-        model = torch.nn.DataParallel(model, device_ids=[0])
+        model = torch.nn.DataParallel(model, device_ids=[2])
     if os.path.exists('model/par'):
         model.load_state_dict(torch.load('model/par'))
         print('continuous training model')
@@ -373,7 +377,7 @@ def train_par():
     train_generator = ParallelDataset(train_data).get_generator(generator_params)
     valid_generator = ParallelDataset(valid_data).get_generator(generator_params)
     test_generator = ParallelDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters())
     for epoch in range(MAX_EPOCH):
         print('Epoch: %d' % epoch)
         go_par(True, model, optimizer, train_generator, 'model/par')
@@ -381,6 +385,6 @@ def train_par():
         go_par(False, model, optimizer, test_generator, None)
 
 if __name__ == '__main__':
-    train_nli()
+    #train_nli()
     #train_par()
-    #eval_nli()
+    eval_nli()
