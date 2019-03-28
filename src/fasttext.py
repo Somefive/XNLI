@@ -394,9 +394,9 @@ def train_par():
     
     for epoch in range(args.max_epoch):
         print('Epoch: %d' % epoch)
-        go_par(True, model, optimizer, train_generator, 'model/par')
-        go_par(False, model, optimizer, valid_generator, None)
-        go_par(False, model, optimizer, test_generator, None)
+        go_par(True, model, train_generator)
+        go_par(False, model, valid_generator)
+        go_par(False, model, test_generator)
 
 if __name__ == '__main__':
     print('model: %s' % args.mode)
