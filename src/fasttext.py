@@ -333,7 +333,7 @@ def eval_nli():
     model = ClassifierModel(vocab_size=args.vocab_size).float().to(args.device)
     nli_weight = torch.load(args.nli_model, map_location=args.device)
     par_weight = torch.load(args.par_model, map_location=args.device)
-    lstm_weight, embed_weight = extract_weight(par_weight, 'lstm_par'), extract_weight(par_weight, 'par_embed')
+    lstm_weight, embed_weight = extract_weight(par_weight, 'lstm_par'), extract_weight(par_weight, 'embed_par')
     model.embed.load_state_dict(embed_weight)
     model.lstm.load_state_dict(lstm_weight)
     fc1_weight, fc2_weight = extract_weight(nli_weight, 'fc1'), extract_weight(nli_weight, 'fc2')
