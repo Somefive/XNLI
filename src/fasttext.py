@@ -25,7 +25,9 @@ def parse_args():
     parser.add_argument('--dataset_size', default=10000, type=int, help='dataset size')
     parser.add_argument('--max_seq_len', default=256, type=int, help='max sequence length')
     parser.add_argument('--max_epoch', default=100, type=int, help='max epoch')
-    parser.add_argument('--args.max_epoch', default=2000, type=int, help='epoch size')
+    parser.add_argument('--epoch_size', default=2000, type=int, help='epoch size')
+    parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
+    parser.add_argument('--nli_model', default='model/en-nli', type=str, help='NLI model path')
     args = parser.parse_args()
     return args
 
@@ -278,8 +280,10 @@ def collate_fn_par(data):
     ycs = pad_sequence([torch.LongTensor(y) for y in ycs], batch_first=True, padding_value=PAD_IDX)
     return xs, ys, xcs, ycs
 
-def go_nli(train, model, optimizer, criterion, generator, model_path=None):
+def go_nli(train, model, generator):
     model.train(train)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    criterion = nn.CrossEntropyLoss()
     pbar = tqdm(enumerate(generator), ncols=0)
     total_loss, total_acc, cnt = 0, 0, 0
     for idx, (batch_X, batch_Y, batch_labels) in pbar:
@@ -295,20 +299,20 @@ def go_nli(train, model, optimizer, criterion, generator, model_path=None):
         cnt += batch_labels.size(0)
         if idx % 10 == 9:
             pbar.set_description('[%s] loss: %.4f acc: %.4f' % ('Train' if train else 'EVAL', total_loss / cnt, total_acc / cnt))
-    if train and model_path is not None:
-        torch.save(model.state_dict(), model_path)
-        print('model save to %s' % model_path)
+    if train:
+        torch.save(model.state_dict(), args.nli_model)
+        print('model save to %s' % args.nli_model)
 
 def train_nli():
     en_dico = pickle.load(open('data/dico/en', 'rb'))
     model = ClassifierModel(vocab_size=args.vocab_size).float().to(args.device)
-    if not os.path.exists('model/en-nli'):
+    if not os.path.exists(args.nli_model):
         model.embed.load_state_dict({'weight': torch.as_tensor(np.load('data/weight/en.npy'))})
         print('load pretrained weight')
     if args.device != 'cpu':
         model = torch.nn.DataParallel(model, device_ids=args.gpus)
-    if os.path.exists('model/en-nli'):
-        model.load_state_dict(torch.load('model/en-nli'))
+    if os.path.exists(args.nli_model):
+        model.load_state_dict(torch.load(args.nli_model))
         print('continuous training model')
     train_data = load_dataset('data/xnli/en.train', en_dico)
     valid_data = load_dataset('data/xnli/en.valid', en_dico)
@@ -316,13 +320,11 @@ def train_nli():
     train_generator = NLIDataset(train_data).get_generator(generator_params)
     valid_generator = NLIDataset(valid_data).get_generator(generator_params)
     test_generator = NLIDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
     for epoch in range(args.max_epoch):
         print('Epoch: %d' % epoch)
-        go_nli(True, model, optimizer, criterion, train_generator, 'model/en-nli')
-        go_nli(False, model, optimizer, criterion, valid_generator, None)
-        go_nli(False, model, optimizer, criterion, test_generator, None)
+        go_nli(True, model, train_generator)
+        go_nli(False, model, valid_generator)
+        go_nli(False, model, test_generator)
 
 def eval_nli():
     print('EVAL NLI')
@@ -340,10 +342,10 @@ def eval_nli():
     test_data = load_dataset('data/xnli/en.test', fr_dico)
     valid_generator = NLIDataset(valid_data).get_generator(generator_params)
     test_generator = NLIDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
-    go_xnli(False, model, optimizer, criterion, valid_generator, None)
-    go_xnli(False, model, optimizer, criterion, test_generator, None)
+    go_nli(False, model, optimizer, criterion, valid_generator, None)
+    go_nli(False, model, optimizer, criterion, test_generator, None)
 
 def go_par(train, model, optimizer, generator, model_path=None):
     model.train(train)
@@ -389,7 +391,7 @@ def train_par():
     train_generator = ParallelDataset(train_data).get_generator(generator_params)
     valid_generator = ParallelDataset(valid_data).get_generator(generator_params)
     test_generator = ParallelDataset(test_data).get_generator(generator_params)
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     for epoch in range(args.max_epoch):
         print('Epoch: %d' % epoch)
         go_par(True, model, optimizer, train_generator, 'model/par')
