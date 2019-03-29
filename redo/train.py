@@ -10,11 +10,11 @@ from torch.autograd import Variable
 import torch.nn as nn
 
 from data import get_xnli, get_batch, build_vocab
-#from data import get_xnli, get_batch, build_vocab
 from mutils import get_optimizer
 from model import BiLSTM, ClassifierNet
 
 from collections import defaultdict
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='Encoder Training?')
 # paths
@@ -26,7 +26,7 @@ parser.add_argument("--outputmodelname", type=str, default='model.pickle')
 parser.add_argument("--word_emb_path", type=str, default="data/emb/", help="word embedding file path")
 
 # training
-parser.add_argument("--n_epochs", type=int, default=20)
+parser.add_argument("--n_epochs", type=int, default=4)
 parser.add_argument("--batch_size", type=int, default=64)
 parser.add_argument("--dpout_model", type=float, default=0.1, help="encoder dropout")
 parser.add_argument("--dpout_fc", type=float, default=0.1, help="classifier dropout")
@@ -47,7 +47,7 @@ parser.add_argument("--n_classes", type=int, default=3, help="entailment/neutral
 parser.add_argument("--pool_type", type=str, default='max', help="max or mean")
 
 # gpu
-parser.add_argument("--gpu_id", type=int, default=3, help="GPU ID")
+parser.add_argument("--gpu_id", type=int, default=0, help="GPU ID")
 parser.add_argument("--seed", type=int, default=1234, help="seed")
 
 # data
@@ -57,6 +57,8 @@ params, _ = parser.parse_known_args()
 
 # set gpu device
 torch.cuda.set_device(params.gpu_id)
+device = torch.device("cuda:0")
+
 
 # print parameters passed, and all parameters
 print('\ntogrep : {0}\n'.format(sys.argv[1:]))
@@ -70,61 +72,45 @@ lg = "en"
 train, valid, test = get_xnli(lg, params.xnlipath)
 word_embed = build_vocab([train, valid, test], params.word_emb_path, lg)
 
-# embed the 3 files with the dict above
-# for f in [train, valid, test]:
-#     for pair in f["pairs"]:
-#         s1 = pair[0]
-#         s2 = pair[1]
-#         s1.insert(0, ['<s>'])
-# for split in ['s1', 's2']:
-#     for data_type in ['train', 'valid', 'test']:
-#         eval(data_type)[split] = np.array([['<s>'] +
-#             [word for word in sent.split() if word in word_vec] +
-#             ['</s>'] for sent in eval(data_type)[split]])
-
 """
 MODEL
 """
 # model config
 config_model = {
-    'vocav_size'     :  len(word_embed)          ,
-    'word_emb_dim'   :  params.word_emb_dim   ,
-    'enc_lstm_dim'   :  params.enc_lstm_dim   ,
-    'n_enc_layers'   :  params.n_enc_layers   ,
-    'dpout_model'    :  params.dpout_model    ,
-    'dpout_fc'       :  params.dpout_fc       ,
-    'fc_dim'         :  params.fc_dim         ,
-    'bsize'          :  params.batch_size     ,
-    'n_classes'      :  params.n_classes      ,
-    'pool_type'      :  params.pool_type      ,
-    'nonlinear_fc'   :  params.nonlinear_fc   ,
-    'encoder_type'   :  params.encoder_type   ,
-    'use_cuda'       :  True                  ,
+    'vocav_size':len(word_embed),
+    'word_emb_dim':params.word_emb_dim,
+    'enc_lstm_dim':params.enc_lstm_dim,
+    'n_enc_layers':params.n_enc_layers,
+    'dpout_model':params.dpout_model,
+    'dpout_fc':params.dpout_fc,
+    'fc_dim':params.fc_dim,
+    'bsize':params.batch_size,
+    'n_classes' :params.n_classes,
+    'pool_type':params.pool_type,
+    'nonlinear_fc':params.nonlinear_fc,
+    'encoder_type':params.encoder_type,
+    'use_cuda':True,
 
 }
 
 # model
-#encoders = ["BiLSTM"]
-#encoder_types = ['InferSent', 'BLSTMprojEncoder', 'BGRUlastEncoder',
-#                 'InnerAttentionMILAEncoder', 'InnerAttentionYANGEncoder',
-#                 'InnerAttentionNAACLEncoder', 'ConvNetEncoder', 'LSTMEncoder']
-#assert params.encoder in encoders, "encoder_type must be in " + str(encoders)
-classifier = ClassifierNet(config_model)
+classifier = ClassifierNet(config_model).to(device)
 print(classifier)
 
 # loss
 weight = torch.FloatTensor(params.n_classes).fill_(1)
-loss_fn = nn.CrossEntropyLoss(weight=weight) # todo: alignment loss?
+loss_fn = nn.CrossEntropyLoss(weight=weight).to(device) # todo: alignment loss?
 loss_fn.size_average = False
 
 # optimizer
 optim_fn, optim_params = get_optimizer(params.optimizer)
 optimizer = optim_fn(classifier.parameters(), **optim_params)
 
-# cuda by default
-classifier.cuda()
-loss_fn.cuda()
-
+# cuda 
+#classifier.cuda()
+#classifier = classifer.to(device)
+#loss_fn.cuda()
+#loss_fn = loss_fn.to(device)
 
 """
 TRAIN
@@ -136,6 +122,7 @@ lr = optim_params['lr'] if 'sgd' in params.optimizer else None
 
 
 def trainepoch(epoch):
+    device = torch.device("cuda:0")
     print('\nTRAINING : Epoch ' + str(epoch))
     classifier.train()
     all_costs = []
@@ -144,16 +131,11 @@ def trainepoch(epoch):
 
     last_time = time.time()
     correct = 0.
-    # shuffle the data
     permutation = np.random.permutation(len(train['pairs']))
 
     pairs = train['pairs']
     s1 = [p[0] for p in pairs]
     s2 = [p[1] for p in pairs]
-    #s1 = [" ".join(p[0]) for p in pairs]
-    #s2 = [" ".join(p[1]) for p in pairs]
-    #s1 = train['pairs'][permutation][0]
-    #s2 = train['pairs'][permutation]
     target = train['labels']
 
 
@@ -171,17 +153,18 @@ def trainepoch(epoch):
         tgt_batch = Variable(torch.LongTensor(target[stidx:stidx + params.batch_size]))
         k = s1_batch.size(1)  # actual batch size
 
-        # model forward
-        #print (s1_batch, s1_len)
+        # forward
         output = classifier((s1_batch, s1_len), (s2_batch, s2_len))
 
         pred = output.data.max(1)[1]
         correct += pred.long().eq(tgt_batch.data.long()).cpu().sum()
         assert len(pred) == len(s1[stidx:stidx + params.batch_size])
-
         # loss
         loss = loss_fn(output, tgt_batch)
-        all_costs.append(loss.data[0])
+        try: 
+            all_costs.append(loss.data[0])
+        except IndexError:
+            all_costs.append(loss.data.item())
         words_count += (s1_batch.nelement() + s2_batch.nelement()) / params.word_emb_dim
 
         # backward
@@ -212,12 +195,12 @@ def trainepoch(epoch):
                             stidx, round(np.mean(all_costs), 2),
                             int(len(all_costs) * params.batch_size / (time.time() - last_time)),
                             int(words_count * 1.0 / (time.time() - last_time)),
-                            round(100.*correct/(stidx+k), 2)))
+                            round(100.*correct.item()/(stidx+k), 2)))
             print(logs[-1])
             last_time = time.time()
             words_count = 0
             all_costs = []
-    train_acc = round(100 * correct/len(s1), 2)
+    train_acc = round(100 * correct.item()/len(s1), 2)
     print('results : epoch {0} ; mean accuracy train : {1}'
           .format(epoch, train_acc))
     return train_acc
@@ -236,20 +219,18 @@ def evaluate(epoch, eval_type='valid', final_eval=False):
     target = valid['label'] if eval_type == 'valid' else test['label']
 
     for i in range(0, len(s1), params.batch_size):
-        # prepare batch
         s1_batch, s1_len = get_batch(s1[i:i + params.batch_size], word_embed, params.word_emb_dim)
         s2_batch, s2_len = get_batch(s2[i:i + params.batch_size], word_embed, params.word_emb_dim)
         s1_batch, s2_batch = Variable(s1_batch), Variable(s2_batch)
         tgt_batch = Variable(torch.LongTensor(target[i:i + params.batch_size]))
 
-        # model forward
         output = classifier((s1_batch, s1_len), (s2_batch, s2_len))
 
         pred = output.data.max(1)[1]
         correct += pred.long().eq(tgt_batch.data.long()).cpu().sum()
 
     # save model
-    eval_acc = round(100 * correct / len(s1), 2)
+    eval_acc = round(100 * correct.item() / len(s1), 2)
     if final_eval:
         print('finalgrep : accuracy {0} : {1}'.format(eval_type, eval_acc))
     else:
@@ -284,10 +265,14 @@ Train model on Natural Language Inference task
 """
 epoch = 1
 
+pbar = tqdm(total = 4)
 while not stop_training and epoch <= params.n_epochs:
     train_acc = trainepoch(epoch)
     eval_acc = evaluate(epoch, 'valid')
     epoch += 1
+    pbar.update(1)
+pbar.close()
+
 
 # Run best model on test set.
 classifier.load_state_dict(torch.load(os.path.join(params.outputdir, params.outputmodelname)))
@@ -299,6 +284,7 @@ evaluate(0, 'test', True)
 # Save encoder instead of full model
 print ("******************** save model!**********************")
 torch.save(classifier.encoder.state_dict(), os.path.join(params.outputdir, params.outputmodelname + '.encoder.pkl'))
+
 
 
 
