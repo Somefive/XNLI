@@ -27,11 +27,11 @@ def get_batch(batch, word_vec, emb_dim=300):
         for j in range(len(batch[i])):
             count += 1
             if len(word_vec[batch[i][j]]) != 300:
-                print (batch[i][j])
-                print ("\n")
-                print (word_vec[batch[i][j]])
-                print ("\n")
-                print (ccount, count)
+                #print (batch[i][j])
+                #print ("\n")
+                #print (word_vec[batch[i][j]])
+                #print ("\n")
+                #print (ccount, count)
                 bij = np.random.rand(300)
                 #continue
             #print (type(word_vec[batch[i][j]]), len(word_vec[batch[i][j]]))
@@ -48,6 +48,9 @@ def get_word_dict(pairs, lg="en"):
             for word in sent:#.split():
                 if word not in word_dict:
                     word_dict[word] = ''
+    #word_dict['<s>'] = ''
+    #word_dict['</s>'] = ''
+    #word_dict['<p>'] = ''
     return word_dict
 
 def get_fastTEXT(word_dict, emb_path, lg="en"):
@@ -58,6 +61,15 @@ def get_fastTEXT(word_dict, emb_path, lg="en"):
         embedding_matrix = np.load(matName)
     else:
         embedding_matrix = word_dict
+    """
+    with open(emb_path) as f:
+        for line in f:
+            word, vec = line.split(' ', 1)
+            if word in word_dict:
+                word_vec[word] = np.array(list(map(float, vec.split())))
+    print('Found {0}(/{1}) words with glove vectors'.format(
+        len(word_vec), len(word_dict)))
+    """
     word_count = 0
     with open(lg_emb) as f:
         for line in tqdm(f, total=2000001):
@@ -86,8 +98,61 @@ def build_vocab(data, emb_path, lg="en"):
     print('Vocab size : {0}'.format(len(word_vec)))
     return word_vec
 
+"""
+
+def build_dict(files):
+    for f in files:
+#def build_vocab(sentences, glove_path):
+#    word_dict = get_word_dict(sentences)
+#    word_vec = get_glove(word_dict, glove_path)
+#    print('Vocab size : {0}'.format(len(word_vec)))
+#    return word_vec
+
+
+def load_embedding(emb_path, lg, word_dict):
+    matName = emb_path + "embed_dict_" + lg + ".pkl"
+    #matName = "embed_dict_" + lg + ".pkl" # a dictionary
+    #matName = "fastText_mat_" + lg + ".npy"
+    lg_emb = emb_path + "cc." + lg + ".300.vec"
+
+    if os.path.exists(matName):
+        embedding_matrix = np.load(matName)
+    else:
+        embedding_matrix = word_dict
+        with open(lg_emb) as f:
+            for line in tqdm(f, total=2000001):
+                line = line.strip().split()
+                word = line[0] # TODO: run this to see if there's formatting error
+                emb_vec = line[-300:]
+                if word in embedding_matrix:
+                    embedding_matrix[word_dict[word]] = np.array(emb_vec)
+        for k in embedding_matrix:
+            if embedding_matrix[k] is None:
+                embedding_matrix[k] = np.random.rand(300)
+    pickle.dump(embedding_matrix, open(matName, "wb"))
+    return embedding_matrix
+
+
+def build_embed(files, emb_path, lg):
+    emb_mat = load_embedding(emb_path, lg)
+    word2vec = {}
+    word_dict = []
+    for f in files:
+        for pair in f:
+            word_dict.extend(pair[0])
+            word_dict.extend(pair[1])
+    word_dict.fromkeys(word_dict)
+    #word_dict['<s>'] = None
+    #word_dict['</s>'] = None
+    #word_dict['<p>'] = None
+    return load_embedding(emb_path, lg, word_dict)
+"""
+
+
 def get_xnli(lg, XNLI_PATH): # train, test or valid
     train, test, valid = {}, {}, {}
+    #t2i = defaultdict(lambda: len(t2i))
+    #maxInt = sys.maxsize
 
     for mode in ["train", "test", "valid"]:
         train_lg_f = XNLI_PATH + r"/" + lg + "." + mode
@@ -96,6 +161,7 @@ def get_xnli(lg, XNLI_PATH): # train, test or valid
             content = f.readlines()
         labels = []
         sent_pairs = []
+        # you may also want to remove whitespace characters like `\n` at the end of each line
         content = [x.strip().split("\t") for x in content]
         for line in content:
             if line[-1] == "label":
@@ -114,4 +180,5 @@ def get_xnli(lg, XNLI_PATH): # train, test or valid
 
     print (len(train["pairs"]), len(train["labels"]))
     return (train, test, valid)
+
 
