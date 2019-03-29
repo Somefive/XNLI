@@ -1,9 +1,8 @@
 # Objective
-This is Da Yin and Xinya Li's reimplementation of Facebook AI research's SOTA method in SNLI (here https://arxiv.org/pdf/1901.07291.pdf)
-Among the three models they attempted, in this project we decided to reimplementat the `TLM + MLM` combination, as it outperforms others sligh
+This is Da Yin and Xinya Li's reimplementation of FAIR's SOTA method in XNLI (https://arxiv.org/pdf/1901.07291.pdf) and another implementation of an earlier paper of theirs (the XNLI benchmark paper https://arxiv.org/pdf/1809.05053.pdf). 
 
 # Prereqs
-The tools/ directory is copied from https://github.com/facebookresearch/XLM. The `tokenizer.py` inside is necessary for XNLI data processing.
+The `.sh` files need to be run first to download data and install tools. 
 
 # Data
 ar: Arabic
@@ -22,11 +21,6 @@ ur: Urdu
 vi: Vietnamese
 zh: Chinese (Simplified)
 
-# Implementation
-
-
-# Running
-
 # Citations 
 @InProceedings{conneau2018xnli,
   author =  "Conneau, Alexis
@@ -42,6 +36,10 @@ zh: Chinese (Simplified)
   publisher =   "Association for Computational Linguistics",
   location =    "Brussels, Belgium",
 }
+Our implemention skeleton is based on FAIR's public repositories (listed below).
+https://github.com/facebookresearch/XLM
+https://github.com/facebookresearch/InferSent
+
 
 
 
